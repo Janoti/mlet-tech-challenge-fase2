@@ -1,0 +1,42 @@
+# Versionamento
+.git
+.gitignore
+.gitattributes
+
+# Ambientes virtuais e caches Python
+.venv
+venv
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.coverage
+htmlcov
+
+# Dados e modelos: entram via volume / DVC, nunca pela imagem.
+data
+models
+mlruns
+mlartifacts
+.dvc/cache
+.dvc/tmp
+
+# Editores / SO
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Notebooks (não vão para a imagem de runtime)
+notebooks
+*.ipynb_checkpoints
+
+# Variáveis sensíveis
+.env
+.env.*
+!.env.example
+
+# Documentação e meta
+README.md
+docs

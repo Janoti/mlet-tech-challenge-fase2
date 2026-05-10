@@ -1,0 +1,99 @@
+# ============================================================================
+# CI — Continuous Integration (GitHub Actions)
+# ----------------------------------------------------------------------------
+# Roda automaticamente em todo push e em todo Pull Request contra `main`.
+# Garante que o código que chega na branch principal:
+#   1. Passa no linter (ruff)            -> Clean Code: padrão consistente.
+#   2. Passa nos testes (pytest)         -> proteção contra regressões.
+#
+# Por que dois jobs separados (lint e test) e não um só?
+#   - Execução em paralelo (mais rápido).
+#   - Logs separados, falha localizada (você vê na hora qual quebrou).
+#   - Single Responsibility também vale para CI.
+#
+# Cache do Poetry: a primeira execução costuma demorar (~2min). Após o primeiro
+# run com `poetry.lock` commitado (Etapa 2), o cache acelera para ~20s.
+# ============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancela runs anteriores na mesma branch quando um novo push chega — economiza
+# minutos do GitHub Actions e mantém a fila limpa.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  POETRY_VERSION: "1.8.4"
+
+jobs:
+  # --------------------------------------------------------------------------
+  # Lint: ruff (formato + regras de qualidade)
+  # --------------------------------------------------------------------------
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      # Ruff isolado é leve e rápido. Não precisa do Poetry só pra lintar.
+      - name: Instalar ruff
+        run: pip install ruff==0.7.4
+
+      - name: Rodar ruff check (lint)
+        run: ruff check .
+
+      - name: Rodar ruff format --check (formatação)
+        run: ruff format --check .
+
+  # --------------------------------------------------------------------------
+  # Test: pytest com cobertura
+  # --------------------------------------------------------------------------
+  test:
+    name: Test (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Instalar Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: ${{ env.POETRY_VERSION }}
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      # Cache do .venv: chave depende do lock file. Sem lock (estado atual da
+      # Etapa 1), o cache ainda funciona com fallback pelo hash do pyproject.
+      - name: Cache de dependências (.venv)
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-py${{ env.PYTHON_VERSION }}-${{ hashFiles('**/poetry.lock', '**/pyproject.toml') }}
+
+      - name: Instalar dependências
+        run: poetry install --no-interaction --no-root --with dev
+
+      - name: Instalar o próprio pacote
+        run: poetry install --no-interaction --only-root
+
+      - name: Rodar pytest com cobertura
+        run: poetry run pytest -ra --cov=recsys --cov-report=term-missing
