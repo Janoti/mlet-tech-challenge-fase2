@@ -12,13 +12,15 @@ Decisões de design:
     - Strategy default: `PopularityBiasedStrategy` (mais realista que uniforme).
     - Saída em Parquet (não CSV): tipagem preservada, ~10x menor, leitura
       muito mais rápida em pandas/pyarrow.
+    - Logging via `recsys.utils.logging_utils` (não `print`) — formato
+      `timestamp | level | logger | mensagem`, nível controlável por
+      `LOG_LEVEL`.
     - Funções pequenas (Clean Code): a função `main` orquestra e cada
       sub-função tem uma única responsabilidade.
 """
 
 from __future__ import annotations
 
-import logging
 import os
 import sys
 from pathlib import Path
@@ -35,6 +37,7 @@ from recsys.data.generator import (  # noqa: E402  (import após sys.path)
     GenerationConfig,
     PopularityBiasedStrategy,
 )
+from recsys.utils.logging_utils import get_logger, log_kv, setup_logging  # noqa: E402
 from recsys.utils.seed import set_global_seed  # noqa: E402
 
 # ----------------------------------------------------------------------------
@@ -47,22 +50,12 @@ _DEFAULTS = {
     "NUM_ITEMS": "500",
     "NUM_INTERACTIONS": "50000",
     "DATA_RAW_DIR": "data/raw",
-    "LOG_LEVEL": "INFO",
 }
 
 
 def _get_int_env(key: str) -> int:
     """Lê variável de ambiente como int, caindo em default se ausente."""
     return int(os.getenv(key, _DEFAULTS[key]))
-
-
-def _build_logger() -> logging.Logger:
-    """Configura logger simples para o script."""
-    logging.basicConfig(
-        level=os.getenv("LOG_LEVEL", _DEFAULTS["LOG_LEVEL"]),
-        format="%(asctime)s | %(levelname)-7s | %(message)s",
-    )
-    return logging.getLogger("generate_dataset")
 
 
 def _build_config() -> GenerationConfig:
@@ -85,12 +78,21 @@ def _resolve_output_path() -> Path:
 
 def main() -> int:
     """Entrypoint do script. Retorna código de saída (0 em sucesso)."""
-    logger = _build_logger()
-    config = _build_config()
+    setup_logging()
+    logger = get_logger("recsys.scripts.generate_dataset")
 
+    config = _build_config()
     # Seed global garante reprodutibilidade total (numpy + random + hashes).
     set_global_seed(config.seed)
-    logger.info("Configuração: %s", config)
+
+    log_kv(
+        logger,
+        "config_resolved",
+        num_users=config.num_users,
+        num_items=config.num_items,
+        num_interactions=config.num_interactions,
+        seed=config.seed,
+    )
 
     # Strategy default: viés de popularidade (cauda longa, realista).
     generator = DatasetGenerator(strategy=PopularityBiasedStrategy())
@@ -99,8 +101,12 @@ def main() -> int:
     output_path = _resolve_output_path()
     df.to_parquet(output_path, index=False)
 
-    logger.info("Dataset gerado: %s linhas em %s", len(df), output_path)
-    logger.info("Distribuição de tipos:\n%s", df["interaction_type"].value_counts())
+    log_kv(logger, "dataset_written", rows=len(df), path=str(output_path))
+    log_kv(
+        logger,
+        "interaction_distribution",
+        **df["interaction_type"].value_counts().to_dict(),
+    )
     return 0
 
 

@@ -387,7 +387,46 @@ poetry run pre-commit run --all-files    # roda manualmente em tudo
 Hooks ativos: ruff (lint+format), trailing-whitespace, end-of-file-fixer, check-yaml,
 check-toml, check-added-large-files (≤ 500 kb), check-merge-conflict, detect-private-key.
 
-### 8.4 CI (GitHub Actions)
+### 8.4 Padrão de logs
+
+O projeto **não usa `print()`** — toda saída diagnóstica passa pelo módulo
+[`recsys.utils.logging_utils`](src/recsys/utils/logging_utils.py), idêntico em
+estilo ao adotado na Fase 1 do grupo.
+
+**Formato canônico:**
+
+```
+2026-05-10 18:49:41,339 | INFO | recsys.scripts.generate_dataset | dataset_written | path=data/raw/interactions.parquet rows=50000
+```
+
+Componentes: `timestamp | level | logger_name | event | key1=v1 key2=v2 …`.
+
+**Como usar em código novo:**
+
+```python
+from recsys.utils.logging_utils import get_logger, log_kv, setup_logging
+
+setup_logging()                      # apenas nos entrypoints (scripts/CLI)
+logger = get_logger(__name__)        # em qualquer módulo
+
+logger.info("training_started")
+log_kv(logger, "epoch_finished", epoch=3, loss=0.42, lr=1e-3)
+```
+
+`setup_logging()` é **idempotente** — pode ser chamada várias vezes sem
+duplicar handlers (importante em testes e notebooks).
+
+**Controlar verbosidade:**
+
+```bash
+LOG_LEVEL=DEBUG poetry run python scripts/generate_dataset.py
+LOG_LEVEL=WARNING poetry run pytest -v
+```
+
+Valores aceitos: `DEBUG`, `INFO` (default), `WARNING`, `ERROR`, `CRITICAL`.
+Valor inválido cai silenciosamente em `INFO` — log nunca deve quebrar a app.
+
+### 8.5 CI (GitHub Actions)
 
 Definido em [.github/workflows/ci.yml](.github/workflows/ci.yml). Roda em todo push
 e PR contra `main`:
