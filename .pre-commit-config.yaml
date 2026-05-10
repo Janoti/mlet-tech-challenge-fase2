@@ -1,0 +1,39 @@
+# ============================================================================
+# pre-commit — hooks executados antes de cada commit.
+# ----------------------------------------------------------------------------
+# Objetivo: garantir que o código que entra no Git já está formatado, sem
+# erros básicos de lint e sem segredos. Isso elimina uma fonte enorme de
+# discussões em code review ("ajusta o espaço aqui", "esqueceu o import").
+#
+# Para ativar localmente:
+#   poetry run pre-commit install
+#
+# Para rodar em todos os arquivos manualmente:
+#   poetry run pre-commit run --all-files
+# ============================================================================
+
+repos:
+  # --------------------------------------------------------------------------
+  # Higiene básica de arquivos (trailing whitespace, EOL, YAML/TOML válidos)
+  # --------------------------------------------------------------------------
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=500"]   # bloqueia commit acidental de dataset/binários
+      - id: check-merge-conflict
+      - id: detect-private-key
+
+  # --------------------------------------------------------------------------
+  # Ruff — lint + format (substitui flake8, black, isort)
+  # --------------------------------------------------------------------------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.7.4
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+      - id: ruff-format
