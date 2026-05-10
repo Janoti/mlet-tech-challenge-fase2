@@ -52,6 +52,13 @@ from recsys.data.schema import (
     INTERACTION_COLUMNS,
     InteractionType,
 )
+from recsys.utils.logging_utils import get_logger
+
+# Logger nomeado com o caminho do módulo — convenção do projeto. Mensagens
+# emitidas aqui aparecerão como
+# `... | INFO | recsys.data.generator | ...` quando o root logger estiver
+# configurado via `setup_logging()` (feito pelos scripts/entrypoints).
+_logger = get_logger(__name__)
 
 # ----------------------------------------------------------------------------
 # Probabilidades dos tipos de interação (funil de e-commerce).
@@ -237,6 +244,13 @@ class DatasetGenerator:
         # execuções com a mesma seed produzem exatamente o mesmo dataset.
         rng = np.random.default_rng(config.seed)
 
+        _logger.info(
+            "generate_started | strategy=%s num_interactions=%d seed=%d",
+            type(self._strategy).__name__,
+            config.num_interactions,
+            config.seed,
+        )
+
         user_ids, item_ids = self._strategy.sample_pairs(config, rng)
         interaction_types = self._sample_interaction_types(config.num_interactions, rng)
         timestamps = self._sample_timestamps(config.num_interactions, config.time_window_days, rng)
@@ -262,9 +276,14 @@ class DatasetGenerator:
     def _sample_timestamps(n: int, window_days: int, rng: np.random.Generator) -> np.ndarray:
         """Sorteia timestamps uniformes na janela [now - window_days, now]."""
         # Timezone UTC explícito — evitar bugs sutis em ambientes com TZ local
-        # diferente (Clean Code: "Be explicit").
-        end = datetime.now(tz=timezone.utc)
-        start = end - timedelta(days=window_days)
-        total_seconds = int((end - start).total_seconds())
+        # diferente (Clean Code: "Be explicit"). Em seguida convertemos para
+        # naive porque `np.datetime64[s]` não suporta tz-aware — a convenção
+        # do projeto é que TODOS os timestamps no parquet são UTC.
+        end_utc = datetime.now(tz=timezone.utc)
+        start_naive = (end_utc - timedelta(days=window_days)).replace(tzinfo=None)
+        total_seconds = window_days * 24 * 60 * 60
         offsets = rng.integers(0, total_seconds, size=n)
-        return np.array([start + timedelta(seconds=int(s)) for s in offsets], dtype="datetime64[s]")
+        return np.array(
+            [start_naive + timedelta(seconds=int(s)) for s in offsets],
+            dtype="datetime64[s]",
+        )
