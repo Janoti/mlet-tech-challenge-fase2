@@ -37,7 +37,6 @@ from recsys.data.generator import (  # noqa: E402  (import após sys.path)
 )
 from recsys.utils.seed import set_global_seed  # noqa: E402
 
-
 # ----------------------------------------------------------------------------
 # Defaults — coincidem com `.env.example`. Mantê-los aqui também garante que o
 # script funciona mesmo sem `.env` configurado (boa experiência de onboarding).
