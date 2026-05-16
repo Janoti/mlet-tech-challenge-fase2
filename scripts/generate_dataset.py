@@ -24,6 +24,7 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
+from typing import Final
 
 # Garante que o pacote `recsys` é importável quando rodamos como script
 # (antes do `poetry install` da Etapa 2). Após instalado, esta linha vira
@@ -44,7 +45,7 @@ from recsys.utils.seed import set_global_seed  # noqa: E402
 # Defaults — coincidem com `.env.example`. Mantê-los aqui também garante que o
 # script funciona mesmo sem `.env` configurado (boa experiência de onboarding).
 # ----------------------------------------------------------------------------
-_DEFAULTS = {
+_DEFAULTS: Final[dict[str, str]] = {
     "RANDOM_SEED": "42",
     "NUM_USERS": "2000",
     "NUM_ITEMS": "500",

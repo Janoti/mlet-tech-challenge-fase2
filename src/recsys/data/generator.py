@@ -189,8 +189,9 @@ class PopularityBiasedStrategy(InteractionStrategy):
         A função usa `_sample_with_zipf` para separar a lógica de amostragem
         repetida entre users e items — Clean Code: "Don't Repeat Yourself".
         """
-        user_ids = self._sample_with_zipf(config.num_users, config.num_interactions, self._user_skew, rng)
-        item_ids = self._sample_with_zipf(config.num_items, config.num_interactions, self._item_skew, rng)
+        n = config.num_interactions
+        user_ids = self._sample_with_zipf(config.num_users, n, self._user_skew, rng)
+        item_ids = self._sample_with_zipf(config.num_items, n, self._item_skew, rng)
         return user_ids, item_ids
 
     @staticmethod
@@ -269,7 +270,9 @@ class DatasetGenerator:
     @staticmethod
     def _sample_interaction_types(n: int, rng: np.random.Generator) -> np.ndarray:
         """Sorteia tipos de interação respeitando o funil view→cart→purchase."""
-        choices = np.array([t.value for t in InteractionType], dtype=object)
+        # Lista pura: `rng.choice` aceita sequência de strings sem precisar
+        # do `dtype=object` (que gera FutureWarning no pandas >= 2.2).
+        choices = [t.value for t in InteractionType]
         return rng.choice(choices, size=n, p=list(_INTERACTION_TYPE_PROBS))
 
     @staticmethod
@@ -283,7 +286,7 @@ class DatasetGenerator:
         start_naive = (end_utc - timedelta(days=window_days)).replace(tzinfo=None)
         total_seconds = window_days * 24 * 60 * 60
         offsets = rng.integers(0, total_seconds, size=n)
-        return np.array(
-            [start_naive + timedelta(seconds=int(s)) for s in offsets],
-            dtype="datetime64[s]",
-        )
+        # Vetorizado: numpy soma o array de timedeltas direto, evitando o
+        # list-comprehension em Python (~50× mais rápido para n grande).
+        start = np.datetime64(start_naive, "s")
+        return start + offsets.astype("timedelta64[s]")

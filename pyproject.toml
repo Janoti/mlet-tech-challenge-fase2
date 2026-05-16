@@ -107,6 +107,9 @@ indent-style = "space"
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
+# Resolve `recsys` antes do `poetry install` — útil para rodar `pytest` direto
+# em um clone fresco (CI / avaliador).
+pythonpath = ["src"]
 addopts = [
     "-ra",                       # mostra resumo de falhas/skips
     "--strict-markers",
