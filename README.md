@@ -16,7 +16,7 @@ navegação dos usuários**. O modelo central é uma rede neural (MLP ou embeddi
 em PyTorch, com pipeline completo containerizado em Docker, dados versionados com DVC,
 experimentos rastreados no MLflow e código seguindo padrões profissionais de Clean Code.
 
-> **Status atual: Etapa 1 concluída.** As demais etapas serão implementadas
+> **Status atual: Etapas 1 e 2 concluídas.** As demais etapas serão implementadas
 > incrementalmente — ver [§ 5 Roadmap](#5-roadmap).
 
 ## Arquitetura planejada
@@ -45,7 +45,7 @@ flowchart TD
     style M fill:#326CE5,color:#fff
 ```
 
-> Legenda: nós em verde já estão implementados (Etapa 1). Demais estão como
+> Legenda: nós em verde já estão implementados (Etapas 1 e 2). Demais estão como
 > placeholder e serão habilitados nas próximas etapas.
 
 ## Design pattern aplicado (Strategy)
@@ -95,9 +95,9 @@ classDiagram
 - [x] Script reprodutível de geração de dataset sintético (seed fixa, schema inspirado no **RetailRocket**)
 - [x] Suíte de testes cobrindo schema, reprodutibilidade, Strategy pattern e validação
 - [x] Documentação inicial: `README.md` + `docs/etapa-01-resumo.md`
-- [ ] Lock file `poetry.lock` commitado (Etapa 2)
-- [ ] `Pydantic Settings` + `.env` real (Etapa 2)
-- [ ] Script `scripts/validate_env.py` (Etapa 2)
+- [x] Lock file `poetry.lock` commitado (Etapa 2)
+- [x] `Pydantic Settings` + `.env` real (Etapa 2)
+- [x] Script `scripts/validate_env.py` (Etapa 2)
 - [ ] `Dockerfile` multi-stage + `docker-compose.yml` (Etapa 3)
 - [ ] `dvc.yaml` com pipeline `preprocess → feature_eng → train → evaluate` (Etapa 3)
 - [ ] MLflow tracking + Model Registry com promoção a Production (Etapas 3-4)
@@ -144,12 +144,16 @@ purchase         1465
 |---|---|---|
 | **Gerar dataset (default)** | `poetry run python scripts/generate_dataset.py` | Recria o dataset sintético com seed 42 |
 | **Gerar dataset customizado** | `NUM_INTERACTIONS=100000 poetry run python scripts/generate_dataset.py` | Trocar tamanho via env var (ver `.env.example`) |
+| **Gerar dataset enriquecido** | `poetry run python scripts/generate_dataset_enriched.py` | Base com sazonalidade, categorias e gênero |
+| **Validar ambiente** | `poetry run python scripts/validate_env.py` | Checar settings, pacotes e diretórios |
 | **Rodar testes** | `poetry run pytest -v` | Validar schema, reprodutibilidade e Strategy |
 | **Rodar testes com cobertura** | `poetry run pytest --cov=recsys --cov-report=term-missing` | Análise de cobertura |
 | **Lint** | `poetry run ruff check .` | Verificar qualidade do código |
 | **Auto-format** | `poetry run ruff format .` | Corrigir formatação |
 | **Pre-commit em todos os arquivos** | `poetry run pre-commit run --all-files` | Validar tudo antes de commitar |
 | **Instalar pre-commit hooks localmente** | `poetry run pre-commit install` | Ativar checks automáticos no `git commit` |
+| **CI local completo** | `make check` | Lint + format + testes antes de abrir PR |
+| **Pipeline completo** | `make all` | Setup → validate → check → data → eda |
 
 ## 1. Objetivo
 
@@ -164,7 +168,7 @@ purchase         1465
 
 ## 2. Pipeline e estrutura
 
-A Etapa 1 entrega a fundação. O fluxo completo (a ser construído nas próximas
+As Etapas 1 e 2 entregam a fundação. O fluxo completo (a ser construído nas próximas
 etapas) será orquestrado pelo DVC:
 
 ```text
@@ -173,7 +177,8 @@ data/raw/  →  preprocess  →  feature_eng  →  train (MLP)  →  evaluate
 ```
 
 Cada estágio do DVC consumirá artefatos versionados do estágio anterior. Hoje,
-apenas o nó-fonte (`data/raw/`) é populado, via `scripts/generate_dataset.py`.
+o nó-fonte (`data/raw/`) é populado via `scripts/generate_dataset.py` (base original)
+ou `scripts/generate_dataset_enriched.py` (base com sazonalidade, categorias e gênero).
 
 ## 3. Dataset
 
@@ -205,7 +210,20 @@ Mapeamento de schema (gerado ↔ RetailRocket original):
 | Estratégia de amostragem | `PopularityBiasedStrategy` (Zipf) | injeção do construtor |
 | Seed | 42 | `RANDOM_SEED` |
 
-### 3.3 Por que sintético em vez de baixar o RetailRocket?
+### 3.3 Dataset enriquecido (Etapa 2)
+
+O script `scripts/generate_dataset_enriched.py` gera uma versão alternativa mais realista,
+com três dimensões adicionais:
+
+| Dimensão | Detalhe |
+|---|---|
+| **Sazonalidade semanal** | Fins de semana têm 2.5× mais tráfego e funil com mais purchase (6% vs 2%) |
+| **Categoria de produto** | 5 categorias: eletronicos, moda, casa, esportes, beleza |
+| **Gênero do usuário** | M / F / NB com proporções realistas (48% / 47% / 5%) |
+
+Saída: `data/raw/interactions_enriched.parquet` com colunas `user_id`, `item_id`, `category`, `user_gender`, `interaction_type`, `timestamp`.
+
+### 3.4 Por que sintético em vez de baixar o RetailRocket?
 
 - **Reprodutibilidade total** — duas execuções com a mesma seed produzem
   exatamente o mesmo `parquet` (verificado em [test_generator.py:65](tests/data/test_generator.py#L65)).
@@ -223,35 +241,46 @@ Mapeamento de schema (gerado ↔ RetailRocket original):
 mlet-tech-challenge-fase2/
 ├── .github/workflows/
 │   └── ci.yml                       # CI: lint (ruff) + test (pytest) em paralelo
-├── configs/                         # YAMLs de configuração por etapa (Etapa 2+)
 ├── data/
 │   ├── raw/                         # Dataset bruto (versionado via DVC na Etapa 3)
 │   ├── interim/                     # Artefatos intermediários
 │   └── processed/                   # Splits prontos para treino
 ├── docs/
-│   └── etapa-01-resumo.md           # Resumo detalhado da Etapa 1
+│   ├── etapa-01-resumo.md           # Resumo detalhado da Etapa 1
+│   └── etapa-02-resumo.md           # Resumo detalhado da Etapa 2
 ├── models/                          # Artefatos de modelo (MLflow Registry, Etapa 4)
-├── notebooks/                       # Notebooks de exploração (não vão para runtime)
+├── notebooks/
+│   └── 01_eda.ipynb                 # EDA do dataset enriquecido (9 seções)
 ├── scripts/
-│   └── generate_dataset.py          # Entrypoint CLI do gerador de dataset
+│   ├── generate_dataset.py          # Entrypoint CLI do gerador (base original)
+│   ├── generate_dataset_enriched.py # Entrypoint CLI do gerador enriquecido
+│   └── validate_env.py              # Valida ambiente: settings, pacotes, dirs
 ├── src/recsys/
 │   ├── __init__.py
+│   ├── config.py                    # Pydantic Settings — fonte única de config
 │   ├── data/
 │   │   ├── generator.py             # Strategy pattern + DatasetGenerator
+│   │   ├── generator_enriched.py    # Gerador com sazonalidade, categoria, gênero
 │   │   └── schema.py                # InteractionType (StrEnum) + constantes
 │   ├── models/                      # PyTorch + baselines (Etapas 3-4)
 │   ├── preprocessing/               # Estratégias de pré-processamento (Etapa 3)
 │   └── utils/
 │       └── seed.py                  # set_global_seed centralizado
 ├── tests/
-│   ├── __init__.py
-│   └── data/
-│       └── test_generator.py        # Schema · Reprodutibilidade · Strategy · Validação
+│   ├── config/
+│   │   └── test_config.py           # Settings: defaults, normalização, validação, env override
+│   ├── data/
+│   │   ├── test_generator.py        # Schema · Reprodutibilidade · Strategy · Validação
+│   │   └── test_generator_enriched.py # Schema · Reprodutibilidade · Validação (enriquecido)
+│   └── utils/
+│       ├── test_logging_utils.py
+│       └── test_seed.py
 ├── .dockerignore                    # Pronto para Etapa 3 (Docker → K8s)
 ├── .env.example                     # Template de variáveis de ambiente
 ├── .gitignore
 ├── .pre-commit-config.yaml          # Hooks locais (ruff + higiene)
 ├── .python-version                  # 3.11
+├── Makefile                         # Atalhos: make check, make data, make test, ...
 ├── pyproject.toml                   # Poetry + ruff + pytest (única fonte da verdade)
 └── README.md
 ```
@@ -261,12 +290,12 @@ mlet-tech-challenge-fase2/
 | Etapa | Foco | Entregáveis | Status |
 |---|---|---|---|
 | **1** | Clean Code e Estrutura | Estrutura, design patterns, linting, CI, gerador de dataset | ✅ Concluída |
-| **2** | Ambiente e Dependências | `poetry.lock`, `Pydantic Settings`, `.env`, `validate_env.py` | ⏳ Próxima |
+| **2** | Ambiente e Dependências | `poetry.lock`, `Pydantic Settings`, `.env`, `validate_env.py` | ✅ Concluída |
 | **3** | Containerização e Versionamento | `Dockerfile` multi-stage, `docker-compose`, `dvc init`, `dvc.yaml` (≥ 3 stages), MLflow tracking | ⏳ |
 | **4** | Rede Neural, Registry e Entrega | MLP PyTorch, baselines sklearn (≥ 4 métricas), Model Registry → Production, Model Card, vídeo STAR | ⏳ |
 | **Bônus** | Deploy em nuvem | Kubernetes (alinhado com as aulas gravadas) — URL pública acessível | ⏳ |
 
-Detalhes da Etapa 1 em [docs/etapa-01-resumo.md](docs/etapa-01-resumo.md).
+Detalhes em [docs/etapa-01-resumo.md](docs/etapa-01-resumo.md) e [docs/etapa-02-resumo.md](docs/etapa-02-resumo.md).
 
 ## 6. Ambiente e instalação
 
@@ -313,23 +342,32 @@ Variáveis disponíveis (resumo — ver `.env.example` para a lista completa):
 
 ## 7. Geração dos dados
 
-### 7.1 Uso padrão
+### 7.1 Dataset original
 
 ```bash
 poetry run python scripts/generate_dataset.py
 ```
 
 Gera `data/raw/interactions.parquet` com 50.000 linhas, seed=42 e viés de popularidade
-(`PopularityBiasedStrategy`).
+(`PopularityBiasedStrategy`). Colunas: `user_id`, `item_id`, `interaction_type`, `timestamp`.
 
-### 7.2 Customização via env vars
+### 7.2 Dataset enriquecido
+
+```bash
+poetry run python scripts/generate_dataset_enriched.py
+```
+
+Gera `data/raw/interactions_enriched.parquet` com sazonalidade semanal, categorias de produto
+e gênero do usuário. Colunas extras: `category`, `user_gender`.
+
+### 7.3 Customização via env vars
 
 ```bash
 NUM_INTERACTIONS=100000 NUM_USERS=5000 RANDOM_SEED=7 \
   poetry run python scripts/generate_dataset.py
 ```
 
-### 7.3 Estratégia alternativa (uso programático)
+### 7.4 Estratégia alternativa (uso programático)
 
 Para gerar um dataset com distribuição uniforme (baseline ingênua, sem cauda longa):
 
@@ -368,14 +406,21 @@ poetry run pytest tests/data/test_generator.py -v          # arquivo específico
 poetry run pytest tests/data/test_generator.py::TestReproducibility -v
 ```
 
-Suítes implementadas em `tests/data/test_generator.py`:
+Suítes de teste — **54 testes, 99% de cobertura**:
 
-| Classe | Cobre |
-|---|---|
-| `TestSchema` | Colunas, contagem de linhas, ranges de IDs, tipos de interação válidos |
-| `TestReproducibility` | Mesma seed ⇒ DataFrame idêntico; seeds diferentes ⇒ DataFrames diferentes |
-| `TestStrategyPattern` | `PopularityBiasedStrategy` concentra interações mais do que `UniformInteractionStrategy` |
-| `TestConfigValidation` | `GenerationConfig` rejeita inputs inválidos (`num_users < 0`, `num_interactions < 10_000`) |
+| Arquivo | Classe | Cobre |
+|---|---|---|
+| `tests/config/test_config.py` | `TestDefaults` | Valores default do Settings |
+| | `TestLogLevelNormalization` | Normalização para maiúsculas |
+| | `TestValidation` | Rejeição de valores inválidos |
+| | `TestEnvOverride` | Variáveis de ambiente sobrepõem defaults |
+| `tests/data/test_generator.py` | `TestSchema` | Colunas, contagem, ranges de IDs, tipos válidos |
+| | `TestReproducibility` | Mesma seed ⇒ DataFrame idêntico |
+| | `TestStrategyPattern` | Zipf concentra mais que uniforme |
+| | `TestConfigValidation` | Rejeita inputs inválidos |
+| `tests/data/test_generator_enriched.py` | `TestSchema` | Schema enriquecido: category, user_gender, timestamp ordenado |
+| | `TestReproducibility` | Reprodutibilidade bit-a-bit |
+| | `TestConfigValidation` | Rejeita skew ≤ 1.0 e interações < 10k |
 
 ### 8.3 Pre-commit (local)
 
@@ -463,21 +508,20 @@ ser commitado na Etapa 2.
 
 ## 10. Documentação
 
-- [docs/etapa-01-resumo.md](docs/etapa-01-resumo.md) — resumo da Etapa 1 com referência
-  detalhada ao RetailRocket e princípios de Clean Code aplicados.
+- [docs/etapa-01-resumo.md](docs/etapa-01-resumo.md) — resumo da Etapa 1: Clean Code, Strategy pattern, CI, gerador de dataset.
+- [docs/etapa-02-resumo.md](docs/etapa-02-resumo.md) — resumo da Etapa 2: Poetry, Pydantic Settings, .env, validate_env, EDA.
 
 Documentação adicional será criada conforme as etapas avançam:
 
-- `docs/etapa-02-resumo.md` (Poetry + lock + Pydantic Settings)
 - `docs/etapa-03-resumo.md` (Docker + DVC + MLflow)
 - `docs/etapa-04-resumo.md` (PyTorch + Registry + Model Card)
 - `docs/model_card.md` (Model Card final, Etapa 4)
 
 ## 11. Próximos passos imediatos
 
-1. Rodar `poetry install` para gerar e commitar o `poetry.lock`.
-2. Abrir Pull Request: [feat/etapa-01-clean-code-estrutura → main](https://github.com/Janoti/mlet-tech-challenge-fase2/compare/main...feat/etapa-01-clean-code-estrutura).
-3. Iniciar Etapa 2 — `Pydantic Settings` para externalizar config + `scripts/validate_env.py`.
+1. Iniciar Etapa 3 — `Dockerfile` multi-stage, `docker-compose.yml` com MLflow server, `dvc init` + `dvc.yaml` com ≥ 3 stages (`preprocess → feature_eng → train`).
+2. Configurar MLflow tracking nos scripts de treino (Etapa 3).
+3. Implementar modelo PyTorch (MLP / embedding) e baselines sklearn (Etapa 4).
 
 ## 12. Contato
 
