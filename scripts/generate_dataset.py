@@ -33,11 +33,8 @@ _SRC_DIR = Path(__file__).resolve().parent.parent / "src"
 if _SRC_DIR.exists() and str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
 
-from recsys.data.generator import (  # noqa: E402  (import após sys.path)
-    DatasetGenerator,
-    GenerationConfig,
-    PopularityBiasedStrategy,
-)
+from recsys.data.factory import DatasetGeneratorFactory  # noqa: E402
+from recsys.data.generator import GenerationConfig  # noqa: E402
 from recsys.utils.logging_utils import get_logger, log_kv, setup_logging  # noqa: E402
 from recsys.utils.seed import set_global_seed  # noqa: E402
 
@@ -95,8 +92,7 @@ def main() -> int:
         seed=config.seed,
     )
 
-    # Strategy default: viés de popularidade (cauda longa, realista).
-    generator = DatasetGenerator(strategy=PopularityBiasedStrategy())
+    generator = DatasetGeneratorFactory.create("basic")
     df = generator.generate(config)
 
     output_path = _resolve_output_path()

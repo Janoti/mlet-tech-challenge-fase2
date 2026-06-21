@@ -87,6 +87,7 @@ classDiagram
 
 - [x] Estrutura `src/`, `tests/`, `data/`, `models/`, `configs/`, `scripts/`, `docs/`
 - [x] Design pattern **Strategy** aplicado no gerador de dataset
+- [x] Design pattern **Factory Method** aplicado na criação de geradores (`DatasetGeneratorFactory`)
 - [x] Pacote `recsys` com type hints + docstrings Google style em toda função pública
 - [x] `pyproject.toml` com **Poetry** (deps prod/dev separadas)
 - [x] **Ruff** configurado (lint + format) — regras `E, W, F, I, B, C90, N, UP, SIM, D, ANN`
@@ -259,6 +260,7 @@ mlet-tech-challenge-fase2/
 │   ├── __init__.py
 │   ├── config.py                    # Pydantic Settings — fonte única de config
 │   ├── data/
+│   │   ├── factory.py               # Factory Method — cria geradores por modo
 │   │   ├── generator.py             # Strategy pattern + DatasetGenerator
 │   │   ├── generator_enriched.py    # Gerador com sazonalidade, categoria, gênero
 │   │   └── schema.py                # InteractionType (StrEnum) + constantes
@@ -270,6 +272,7 @@ mlet-tech-challenge-fase2/
 │   ├── config/
 │   │   └── test_config.py           # Settings: defaults, normalização, validação, env override
 │   ├── data/
+│   │   ├── test_factory.py          # Factory Method — criação por modo, estratégia, erro
 │   │   ├── test_generator.py        # Schema · Reprodutibilidade · Strategy · Validação
 │   │   └── test_generator_enriched.py # Schema · Reprodutibilidade · Validação (enriquecido)
 │   └── utils/
@@ -306,7 +309,43 @@ Detalhes em [docs/etapa-01-resumo.md](docs/etapa-01-resumo.md) e [docs/etapa-02-
 - Git
 - Docker Desktop (necessário a partir da Etapa 3)
 
-### 6.2 Instalação
+### 6.2 Requisitos de sistema
+
+**Sistemas operacionais testados:**
+
+| SO | Versão | Status |
+|---|---|---|
+| Ubuntu | 22.04 LTS | ✅ Testado (CI GitHub Actions) |
+| macOS | 14 Sonoma (Apple Silicon) | ✅ Testado |
+| Windows | 11 | ✅ Testado |
+
+**GPU vs CPU:**
+
+| Etapa | GPU necessária? | Observação |
+|---|---|---|
+| 1 — Geração de dados | Não | Roda em qualquer CPU |
+| 2 — EDA e ambiente | Não | Roda em qualquer CPU |
+| 3 — Treino (PyTorch) | Recomendada | Funciona em CPU, mas lento |
+| 4 — Avaliação do modelo | Recomendada | Idem |
+
+**Instalação do PyTorch por hardware:**
+
+```bash
+# CPU apenas (Etapas 1-2 ou máquina sem GPU)
+pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+# GPU com CUDA 12.1 (recomendado para Etapa 3+)
+pip install torch --index-url https://download.pytorch.org/whl/cu121
+
+# GPU com CUDA 11.8
+pip install torch --index-url https://download.pytorch.org/whl/cu118
+```
+
+> **Nota:** `poetry install` baixa a versão CPU por padrão (comportamento do PyPI).
+> Para treinar na GPU na Etapa 3, será necessário reinstalar o torch com o índice correto
+> para a versão de CUDA do seu hardware.
+
+### 6.3 Instalação
 
 ```bash
 git clone https://github.com/Janoti/mlet-tech-challenge-fase2.git
@@ -319,7 +358,7 @@ poetry install
 poetry run pre-commit install
 ```
 
-### 6.3 Variáveis de ambiente
+### 6.4 Variáveis de ambiente
 
 Copie `.env.example` para `.env` e ajuste se necessário:
 
@@ -406,7 +445,7 @@ poetry run pytest tests/data/test_generator.py -v          # arquivo específico
 poetry run pytest tests/data/test_generator.py::TestReproducibility -v
 ```
 
-Suítes de teste — **54 testes, 99% de cobertura**:
+Suítes de teste — **59 testes, 99% de cobertura**:
 
 | Arquivo | Classe | Cobre |
 |---|---|---|
@@ -414,6 +453,7 @@ Suítes de teste — **54 testes, 99% de cobertura**:
 | | `TestLogLevelNormalization` | Normalização para maiúsculas |
 | | `TestValidation` | Rejeição de valores inválidos |
 | | `TestEnvOverride` | Variáveis de ambiente sobrepõem defaults |
+| `tests/data/test_factory.py` | `TestDatasetGeneratorFactory` | Criação por modo, estratégia customizada, modo inválido |
 | `tests/data/test_generator.py` | `TestSchema` | Colunas, contagem, ranges de IDs, tipos válidos |
 | | `TestReproducibility` | Mesma seed ⇒ DataFrame idêntico |
 | | `TestStrategyPattern` | Zipf concentra mais que uniforme |

@@ -54,20 +54,9 @@ from recsys.data.schema import (
 )
 from recsys.utils.logging_utils import get_logger
 
-# Logger nomeado com o caminho do módulo — convenção do projeto. Mensagens
-# emitidas aqui aparecerão como
-# `... | INFO | recsys.data.generator | ...` quando o root logger estiver
-# configurado via `setup_logging()` (feito pelos scripts/entrypoints).
 _logger = get_logger(__name__)
 
-# ----------------------------------------------------------------------------
-# Probabilidades dos tipos de interação (funil de e-commerce).
-# ----------------------------------------------------------------------------
-# Modelagem realista: a maioria das interações é "view"; menos são
-# "add_to_cart"; ainda menos viram "purchase". A soma é 1.0.
-#
-# Manter como constante (em vez de hard-code dentro da função) atende ao
-# Clean Code: "Use Meaningful Names" e "Avoid Magic Numbers".
+# Funil de e-commerce: view (85%) → add_to_cart (12%) → purchase (3%).
 _INTERACTION_TYPE_PROBS: tuple[float, float, float] = (0.85, 0.12, 0.03)
 
 
@@ -184,11 +173,7 @@ class PopularityBiasedStrategy(InteractionStrategy):
         config: GenerationConfig,
         rng: np.random.Generator,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Amostra pares com viés de popularidade.
-
-        A função usa `_sample_with_zipf` para separar a lógica de amostragem
-        repetida entre users e items — Clean Code: "Don't Repeat Yourself".
-        """
+        """Amostra pares com viés de popularidade."""
         n = config.num_interactions
         user_ids = self._sample_with_zipf(config.num_users, n, self._user_skew, rng)
         item_ids = self._sample_with_zipf(config.num_items, n, self._item_skew, rng)
@@ -278,15 +263,13 @@ class DatasetGenerator:
     @staticmethod
     def _sample_timestamps(n: int, window_days: int, rng: np.random.Generator) -> np.ndarray:
         """Sorteia timestamps uniformes na janela [now - window_days, now]."""
-        # Timezone UTC explícito — evitar bugs sutis em ambientes com TZ local
-        # diferente (Clean Code: "Be explicit"). Em seguida convertemos para
-        # naive porque `np.datetime64[s]` não suporta tz-aware — a convenção
-        # do projeto é que TODOS os timestamps no parquet são UTC.
+        # UTC explícito para evitar bugs com TZ local. Convertemos para naive
+        # porque np.datetime64[s] não suporta tz-aware — todos os timestamps
+        # no parquet são UTC por convenção.
         end_utc = datetime.now(tz=timezone.utc)
         start_naive = (end_utc - timedelta(days=window_days)).replace(tzinfo=None)
         total_seconds = window_days * 24 * 60 * 60
         offsets = rng.integers(0, total_seconds, size=n)
-        # Vetorizado: numpy soma o array de timedeltas direto, evitando o
-        # list-comprehension em Python (~50× mais rápido para n grande).
+        # Vetorizado — ~50× mais rápido que list-comprehension para n grande.
         start = np.datetime64(start_naive, "s")
         return start + offsets.astype("timedelta64[s]")

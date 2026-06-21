@@ -37,8 +37,6 @@ def set_global_seed(seed: int) -> None:
         ValueError: Se `seed` for negativo.
     """
     if seed < 0:
-        # Validação no boundary (Clean Code, cap. 7): falhar cedo, com mensagem
-        # clara, em vez de propagar um erro estranho lá na frente.
         raise ValueError(f"seed deve ser >= 0, recebido: {seed}")
 
     os.environ["PYTHONHASHSEED"] = str(seed)
