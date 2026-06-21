@@ -184,11 +184,13 @@ smoke:  ## Smoke test: importa todos os módulos principais do pacote.
 from recsys.config import settings; \
 from recsys.data.generator import DatasetGenerator, GenerationConfig, PopularityBiasedStrategy; \
 from recsys.data.generator_enriched import EnrichedDatasetGenerator, EnrichedGenerationConfig; \
+from recsys.data.factory import DatasetGeneratorFactory; \
 from recsys.utils.logging_utils import get_logger; \
 from recsys.utils.seed import set_global_seed; \
 print('  [OK] recsys.config           — settings.random_seed =', settings.random_seed); \
 print('  [OK] recsys.data.generator           (Strategy pattern)'); \
 print('  [OK] recsys.data.generator_enriched  (sazonalidade + categoria + gênero)'); \
+print('  [OK] recsys.data.factory             (Factory Method pattern)'); \
 print('  [OK] recsys.utils.logging_utils'); \
 print('  [OK] recsys.utils.seed');"
 	$(call _ok,Todos os imports funcionam)
