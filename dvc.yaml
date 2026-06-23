@@ -35,8 +35,6 @@ stages:
       - src/recsys/models/baseline.py
       - data/interim/train.parquet
       - data/processed/popularity.parquet
-    params:
-      - generate
     outs:
       - models/baseline.pkl
   evaluate:
