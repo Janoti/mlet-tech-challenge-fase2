@@ -1,0 +1,11 @@
+# Hiperparâmetros da pipeline — fonte única (lido pelo código, logado no MLflow,
+# usado pelo DVC no hash de dependência de cada stage).
+generate:
+  seed: 42
+  num_users: 2000
+  num_items: 500
+  num_interactions: 50000
+preprocess:
+  test_size: 0.2
+evaluate:
+  top_k: 10

@@ -1,0 +1,136 @@
+schema: '2.0'
+stages:
+  generate:
+    cmd: recsys-generate
+    deps:
+    - path: src/recsys/data/factory.py
+      hash: md5
+      md5: db9aec3d4ebdd096409fc8e574798206
+      size: 2247
+    - path: src/recsys/data/generator.py
+      hash: md5
+      md5: d07db7bc2dd03116d874f08b2e11fb83
+      size: 11832
+    - path: src/recsys/pipeline/generate.py
+      hash: md5
+      md5: d79a90b3d2637a310929250c64910955
+      size: 1355
+    params:
+      params.yaml:
+        generate:
+          seed: 42
+          num_users: 2000
+          num_items: 500
+          num_interactions: 50000
+    outs:
+    - path: data/raw/interactions.parquet
+      hash: md5
+      md5: fe9e24e89634a18e46263ecca3a0c5f0
+      size: 538506
+  preprocess:
+    cmd: recsys-preprocess
+    deps:
+    - path: data/raw/interactions.parquet
+      hash: md5
+      md5: fe9e24e89634a18e46263ecca3a0c5f0
+      size: 538506
+    - path: src/recsys/pipeline/preprocess.py
+      hash: md5
+      md5: 5b3819acc82fed37d7348ffa4add56e5
+      size: 1042
+    - path: src/recsys/preprocessing/splitter.py
+      hash: md5
+      md5: e0ce8b6d7f64e8f1b5d0f145ea4308e0
+      size: 1450
+    params:
+      params.yaml:
+        preprocess:
+          test_size: 0.2
+    outs:
+    - path: data/interim/test.parquet
+      hash: md5
+      md5: 565d2b5564a2175c998a739de349658a
+      size: 115320
+    - path: data/interim/train.parquet
+      hash: md5
+      md5: b54c1cd56c84bbd471cbe3cef9b1a1ee
+      size: 433698
+  feature_eng:
+    cmd: recsys-features
+    deps:
+    - path: data/interim/train.parquet
+      hash: md5
+      md5: b54c1cd56c84bbd471cbe3cef9b1a1ee
+      size: 433698
+    - path: src/recsys/features/build_features.py
+      hash: md5
+      md5: 974c667963403c4a7baca4bfc3950a04
+      size: 817
+    - path: src/recsys/pipeline/feature_eng.py
+      hash: md5
+      md5: 8c9faff0d0f3ed434ec908d1572f7b7b
+      size: 888
+    outs:
+    - path: data/processed/popularity.parquet
+      hash: md5
+      md5: 25be84ec0172ccfd062c902e6c03b9ad
+      size: 5187
+  train:
+    cmd: recsys-train
+    deps:
+    - path: data/interim/train.parquet
+      hash: md5
+      md5: b54c1cd56c84bbd471cbe3cef9b1a1ee
+      size: 433698
+    - path: data/processed/popularity.parquet
+      hash: md5
+      md5: 25be84ec0172ccfd062c902e6c03b9ad
+      size: 5187
+    - path: src/recsys/models/baseline.py
+      hash: md5
+      md5: c150df8653ad59a0e4a553a0abe094db
+      size: 1855
+    - path: src/recsys/pipeline/train.py
+      hash: md5
+      md5: 6bd62185e0cad3083a7e4e26810b57b7
+      size: 1572
+    params:
+      params.yaml:
+        generate:
+          seed: 42
+          num_users: 2000
+          num_items: 500
+          num_interactions: 50000
+    outs:
+    - path: models/baseline.pkl
+      hash: md5
+      md5: b66088716039665d67a96d2e871e8847
+      size: 71668
+  evaluate:
+    cmd: recsys-evaluate
+    deps:
+    - path: data/interim/test.parquet
+      hash: md5
+      md5: 565d2b5564a2175c998a739de349658a
+      size: 115320
+    - path: models/baseline.pkl
+      hash: md5
+      md5: b66088716039665d67a96d2e871e8847
+      size: 71668
+    - path: src/recsys/evaluation/metrics.py
+      hash: md5
+      md5: 315a7365e317267608000f6b0af1344b
+      size: 1628
+    - path: src/recsys/pipeline/evaluate.py
+      hash: md5
+      md5: bc1cb39389ade3537293f600ba1318c0
+      size: 2356
+    params:
+      params.yaml:
+        evaluate:
+          top_k: 10
+    outs:
+    - path: metrics/metrics.json
+      hash: md5
+      md5: 51ac9bf5e9b54782ffaa0f82714be0f3
+      size: 152

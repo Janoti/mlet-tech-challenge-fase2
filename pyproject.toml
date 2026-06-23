@@ -34,10 +34,10 @@ pyarrow = "^17.0"               # Backend Parquet do pandas
 pydantic = "^2.9"
 pydantic-settings = "^2.5"      # Configuração via .env
 python-dotenv = "^1.0"
-torch = "^2.4"                  # Rede neural (MLP / embedding)
 scikit-learn = "^1.5"           # Pré-processamento e baselines
 mlflow = "^2.16"                # Tracking de experimentos e Model Registry
 scipy = "^1.14"                 # Métricas (NDCG, funções estatísticas)
+pyyaml = "^6.0"                 # Leitura do params.yaml em runtime (pipeline)
 
 # ----------------------------------------------------------------------------
 # Dependências de desenvolvimento
@@ -53,7 +53,34 @@ seaborn = "^0.13"               # Gráficos estatísticos no EDA
 ipykernel = "^6.29"             # Suporte a notebooks Jupyter no VSCode
 nbformat = "^5.10.4"
 nbconvert = "^7.17.1"
+
+# ----------------------------------------------------------------------------
+# Dependências de pipeline (orquestração)
+# ----------------------------------------------------------------------------
+# DVC orquestra a pipeline reprodutível e roda dentro do container de treino
+# (CMD dvc repro). Por isso fica em grupo próprio incluído na imagem Docker
+# (poetry export --only main,pipeline) — separado das ferramentas de dev.
+[tool.poetry.group.pipeline.dependencies]
 dvc = "^3.0"                    # Versionamento de dados e pipeline reprodutível
+
+# ----------------------------------------------------------------------------
+# Dependências de deep learning (entram na imagem Docker a partir da Etapa 4)
+# ----------------------------------------------------------------------------
+# torch só é usado pela rede neural (Etapa 4). Mantê-lo em grupo próprio (ainda
+# instalado localmente por padrão) deixa a imagem da Etapa 3 enxuta — sem CUDA/
+# triton — exportando apenas `main,pipeline` no Dockerfile.
+[tool.poetry.group.dl.dependencies]
+torch = "^2.4"                  # Rede neural (MLP / embedding) — Etapa 4
+
+# ----------------------------------------------------------------------------
+# Console scripts — entrypoints dos stages do DVC (chamados no dvc.yaml).
+# ----------------------------------------------------------------------------
+[tool.poetry.scripts]
+recsys-generate = "recsys.pipeline.generate:main"
+recsys-preprocess = "recsys.pipeline.preprocess:main"
+recsys-features = "recsys.pipeline.feature_eng:main"
+recsys-train = "recsys.pipeline.train:main"
+recsys-evaluate = "recsys.pipeline.evaluate:main"
 
 [build-system]
 requires = ["poetry-core>=1.8.0"]

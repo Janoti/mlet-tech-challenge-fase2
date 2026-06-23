@@ -1,0 +1,45 @@
+# ============================================================================
+# Segurança — scan de vulnerabilidades da imagem Docker com Trivy.
+# Modo report-only: builda a imagem, escaneia e publica as vulnerabilidades
+# CRITICAL/HIGH no resumo do PR (não bloqueia o merge).
+#
+# Por que report-only nesta etapa: parte dos CVEs reside no `mlflow 2.x`
+# (exigido pela fase) e só é corrigida no `mlflow 3.x` — a superfície afetada
+# é o serving/tracking server exposto a entrada não-confiável, o que não é o
+# uso deste projeto (tracking local/interno). A remediação do stack de ML
+# (incl. avaliar mlflow 3.x) é revisitada na Etapa 4.
+# ============================================================================
+name: Security (Trivy)
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Trivy image scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Build da imagem
+        run: docker build -t recsys:ci .
+
+      - name: Instalar Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sudo sh -s -- -b /usr/local/bin
+
+      - name: Scan Trivy (report-only — publica CVEs no resumo do PR)
+        run: |
+          {
+            echo '### Trivy — vulnerabilidades CRITICAL/HIGH (report-only)'
+            echo '```'
+            trivy image --severity CRITICAL,HIGH --ignore-unfixed --format table recsys:ci
+            echo '```'
+          } | tee -a "$GITHUB_STEP_SUMMARY"

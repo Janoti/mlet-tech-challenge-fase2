@@ -1,0 +1,49 @@
+# Orquestra o servidor de tracking do MLflow + o serviço de treino.
+# Ambos usam a MESMA imagem do projeto (mlflow já está nas deps) — sem baixar
+# imagem externa e com versão garantidamente idêntica entre cliente e servidor.
+services:
+  mlflow:
+    build: .
+    # Backend SQLite (necessário para o Model Registry da Etapa 4) + artefatos
+    # em volume persistente (estado crítico nunca na camada efêmera).
+    user: root
+    command:
+      - mlflow
+      - server
+      - --backend-store-uri
+      - sqlite:////mlflow/mlflow.db
+      - --default-artifact-root
+      - /mlflow/artifacts
+      - --host
+      - 0.0.0.0
+      - --port
+      - "5000"
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow_data:/mlflow
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; urllib.request.urlopen('http://localhost:5000/health'); sys.exit(0)"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  train:
+    build: .
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    # Imagem autocontida (dados/modelos gerados dentro do container, efêmeros);
+    # os runs/params/métricas persistem no servidor MLflow (volume mlflow_data).
+    # `core.no_scm` (apenas no container, via --local) permite `dvc repro` sem git.
+    command: ["sh", "-c", "dvc config core.no_scm true --local && dvc repro"]
+
+volumes:
+  mlflow_data:
