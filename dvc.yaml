@@ -1,0 +1,53 @@
+stages:
+  generate:
+    cmd: recsys-generate
+    deps:
+      - src/recsys/pipeline/generate.py
+      - src/recsys/data/generator.py
+      - src/recsys/data/factory.py
+    params:
+      - generate
+    outs:
+      - data/raw/interactions.parquet
+  preprocess:
+    cmd: recsys-preprocess
+    deps:
+      - src/recsys/pipeline/preprocess.py
+      - src/recsys/preprocessing/splitter.py
+      - data/raw/interactions.parquet
+    params:
+      - preprocess
+    outs:
+      - data/interim/train.parquet
+      - data/interim/test.parquet
+  feature_eng:
+    cmd: recsys-features
+    deps:
+      - src/recsys/pipeline/feature_eng.py
+      - src/recsys/features/build_features.py
+      - data/interim/train.parquet
+    outs:
+      - data/processed/popularity.parquet
+  train:
+    cmd: recsys-train
+    deps:
+      - src/recsys/pipeline/train.py
+      - src/recsys/models/baseline.py
+      - data/interim/train.parquet
+      - data/processed/popularity.parquet
+    params:
+      - generate
+    outs:
+      - models/baseline.pkl
+  evaluate:
+    cmd: recsys-evaluate
+    deps:
+      - src/recsys/pipeline/evaluate.py
+      - src/recsys/evaluation/metrics.py
+      - models/baseline.pkl
+      - data/interim/test.parquet
+    params:
+      - evaluate
+    metrics:
+      - metrics/metrics.json:
+          cache: false
