@@ -1,0 +1,59 @@
+# ============================================================================
+# Pipeline em miniatura — prova de reprodutibilidade a cada PR.
+# Roda `dvc repro` ponta-a-ponta com um dataset reduzido (rápido) e publica
+# as métricas. Garante que a pipeline DVC continua executável sem quebrar.
+# ============================================================================
+name: Pipeline (miniatura)
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: pipeline-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  POETRY_VERSION: "2.3.2"
+
+jobs:
+  repro:
+    name: dvc repro (dataset reduzido)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Instalar Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: ${{ env.POETRY_VERSION }}
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+
+      # Só deps de runtime da pipeline (main + pipeline): exclui dev e torch (dl).
+      - name: Instalar dependências da pipeline
+        run: poetry install --no-interaction --without dev,dl
+
+      - name: Reduzir params.yaml para execução rápida no CI
+        run: |
+          python - <<'PY'
+          import yaml
+          with open("params.yaml") as fh:
+              params = yaml.safe_load(fh)
+          params["generate"].update(num_users=100, num_items=30, num_interactions=10000)
+          with open("params.yaml", "w") as fh:
+              yaml.safe_dump(params, fh)
+          PY
+
+      - name: Rodar a pipeline (dvc repro)
+        run: poetry run dvc repro --force
+
+      - name: Mostrar métricas
+        run: poetry run dvc metrics show
