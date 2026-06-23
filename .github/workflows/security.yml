@@ -1,0 +1,34 @@
+# ============================================================================
+# Segurança — scan de vulnerabilidades da imagem Docker com Trivy.
+# Builda a imagem e falha o PR se houver CVE CRITICAL/HIGH com correção
+# disponível (supply-chain security desde o build).
+# ============================================================================
+name: Security (Trivy)
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: security-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: Trivy image scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Build da imagem
+        run: docker build -t recsys:ci .
+
+      - name: Scan Trivy (falha em CRITICAL/HIGH com fix)
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: recsys:ci
+          format: table
+          exit-code: "1"
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
