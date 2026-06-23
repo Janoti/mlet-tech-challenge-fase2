@@ -16,10 +16,22 @@ class PopularityRecommender(Recommender):
         self._popular: list[int] = []
         self._seen: dict[int, set[int]] = {}
 
-    def fit(self, train: pd.DataFrame) -> "PopularityRecommender":
-        """Ordena itens por frequência e memoriza itens vistos por usuário."""
-        counts = train[COLUMN_ITEM_ID].value_counts()
-        self._popular = [int(i) for i in counts.index]
+    def fit(
+        self, train: pd.DataFrame, popular_items: list[int] | None = None
+    ) -> "PopularityRecommender":
+        """Define o ranking de popularidade e memoriza itens vistos por usuário.
+
+        Args:
+            train: Interações de treino (usadas para os itens vistos por usuário).
+            popular_items: Ranking de itens já calculado (saída do stage
+                ``feature_eng``). Se ``None``, calcula a popularidade a partir
+                de ``train``.
+        """
+        if popular_items is None:
+            counts = train[COLUMN_ITEM_ID].value_counts()
+            self._popular = [int(i) for i in counts.index]
+        else:
+            self._popular = [int(i) for i in popular_items]
         self._seen = {
             int(u): set(map(int, g[COLUMN_ITEM_ID]))
             for u, g in train.groupby(COLUMN_USER_ID)

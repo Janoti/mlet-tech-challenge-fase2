@@ -31,3 +31,15 @@ def test_empty_relevant_is_zero():
     assert recall_at_k(REC, set(), 4) == 0.0
     assert ndcg_at_k(REC, set(), 4) == 0.0
     assert average_precision_at_k(REC, set(), 4) == 0.0
+
+
+def test_empty_recommended_is_zero():
+    assert precision_at_k([], REL, 4) == 0.0
+    assert recall_at_k([], REL, 4) == 0.0
+    assert ndcg_at_k([], REL, 4) == 0.0
+    assert average_precision_at_k([], REL, 4) == 0.0
+
+
+def test_ap_capped_at_one_when_relevant_exceeds_k():
+    # |relevant| > k: AP@k não pode passar de 1.0 (denominador min(|rel|, k)).
+    assert average_precision_at_k([1, 2], {1, 2, 3}, 2) == pytest.approx(1.0)

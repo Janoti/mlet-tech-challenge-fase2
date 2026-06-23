@@ -7,12 +7,14 @@ evaluation) não importam MLflow; só os stages e este helper conhecem o MLflow.
 from __future__ import annotations
 
 import contextlib
+import logging
 import os
 from collections.abc import Iterator
 
 import mlflow
 
 _DEFAULT_URI = "./mlruns"
+_logger = logging.getLogger(__name__)
 
 
 def get_tracking_uri() -> str:
@@ -26,7 +28,8 @@ def data_version(path: str) -> str | None:
         import dvc.api
 
         return dvc.api.get_url(path)
-    except Exception:  # noqa: BLE001 — cross-link é best-effort, não pode quebrar o treino
+    except Exception as exc:  # noqa: BLE001 — cross-link é best-effort, não pode quebrar o treino
+        _logger.warning("cross-link DVC indisponível para %s: %s", path, exc)
         return None
 
 

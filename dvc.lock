@@ -40,8 +40,8 @@ stages:
       size: 1042
     - path: src/recsys/preprocessing/splitter.py
       hash: md5
-      md5: 327bdc58cfee0e43ef57b15a83b64c39
-      size: 1052
+      md5: e0ce8b6d7f64e8f1b5d0f145ea4308e0
+      size: 1450
     params:
       params.yaml:
         preprocess:
@@ -49,19 +49,19 @@ stages:
     outs:
     - path: data/interim/test.parquet
       hash: md5
-      md5: fbcb6e8dbf7014ee21e6116560cc504f
-      size: 115313
+      md5: 565d2b5564a2175c998a739de349658a
+      size: 115320
     - path: data/interim/train.parquet
       hash: md5
-      md5: 9c5a96d1f586eb7dccde108d0eab526a
-      size: 433694
+      md5: b54c1cd56c84bbd471cbe3cef9b1a1ee
+      size: 433698
   feature_eng:
     cmd: recsys-features
     deps:
     - path: data/interim/train.parquet
       hash: md5
-      md5: 9c5a96d1f586eb7dccde108d0eab526a
-      size: 433694
+      md5: b54c1cd56c84bbd471cbe3cef9b1a1ee
+      size: 433698
     - path: src/recsys/features/build_features.py
       hash: md5
       md5: 974c667963403c4a7baca4bfc3950a04
@@ -80,20 +80,20 @@ stages:
     deps:
     - path: data/interim/train.parquet
       hash: md5
-      md5: 9c5a96d1f586eb7dccde108d0eab526a
-      size: 433694
+      md5: b54c1cd56c84bbd471cbe3cef9b1a1ee
+      size: 433698
     - path: data/processed/popularity.parquet
       hash: md5
       md5: 25be84ec0172ccfd062c902e6c03b9ad
       size: 5187
     - path: src/recsys/models/baseline.py
       hash: md5
-      md5: 37b7e6138a8be41c75f3460b4b9dde12
-      size: 1387
+      md5: c150df8653ad59a0e4a553a0abe094db
+      size: 1855
     - path: src/recsys/pipeline/train.py
       hash: md5
-      md5: c3b00bc25ac673cbd4aad162b819f242
-      size: 1407
+      md5: 6bd62185e0cad3083a7e4e26810b57b7
+      size: 1572
     params:
       params.yaml:
         generate:
@@ -104,18 +104,18 @@ stages:
     outs:
     - path: models/baseline.pkl
       hash: md5
-      md5: c72d37c04ff784d6b16b9806534a6a45
+      md5: b66088716039665d67a96d2e871e8847
       size: 71668
   evaluate:
     cmd: recsys-evaluate
     deps:
     - path: data/interim/test.parquet
       hash: md5
-      md5: fbcb6e8dbf7014ee21e6116560cc504f
-      size: 115313
+      md5: 565d2b5564a2175c998a739de349658a
+      size: 115320
     - path: models/baseline.pkl
       hash: md5
-      md5: c72d37c04ff784d6b16b9806534a6a45
+      md5: b66088716039665d67a96d2e871e8847
       size: 71668
     - path: src/recsys/evaluation/metrics.py
       hash: md5
@@ -132,5 +132,5 @@ stages:
     outs:
     - path: metrics/metrics.json
       hash: md5
-      md5: ef0d9dcf82c50e801a9e1936cfa7c75d
-      size: 151
+      md5: 51ac9bf5e9b54782ffaa0f82714be0f3
+      size: 152
