@@ -87,3 +87,4 @@ mlartifacts/
 /.dvc/plots
 .superpowers/
 poetry.toml
+/.dvcstore/
