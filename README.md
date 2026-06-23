@@ -113,7 +113,7 @@ classDiagram
 - [ ] MLflow Model Registry com promoção a Production (Etapa 4)
 - [ ] Rede neural PyTorch (MLP / embedding) + comparação com baselines sklearn (Etapa 4)
 - [ ] Model Card + vídeo STAR de 5 minutos (Etapa 4)
-- [ ] Deploy bônus em nuvem (Kubernetes — alinhado com as aulas gravadas)
+- [ ] Deploy bônus em nuvem (Kubernetes) — container acessível via URL pública
 
 ## Quick Start
 
@@ -318,7 +318,7 @@ mlet-tech-challenge-fase2/
 | **2** | Ambiente e Dependências | `poetry.lock`, `Pydantic Settings`, `.env`, `validate_env.py` | ✅ Concluída |
 | **3** | Containerização e Versionamento | `Dockerfile` multi-stage, `docker-compose`, `dvc init`, `dvc.yaml` (≥ 3 stages), MLflow tracking | ⏳ |
 | **4** | Rede Neural, Registry e Entrega | MLP PyTorch, baselines sklearn (≥ 4 métricas), Model Registry → Production, Model Card, vídeo STAR | ⏳ |
-| **Bônus** | Deploy em nuvem | Kubernetes (alinhado com as aulas gravadas) — URL pública acessível | ⏳ |
+| **Bônus** | Deploy em nuvem | Kubernetes — container acessível via URL pública | ⏳ |
 
 Detalhes em [docs/etapa-01-resumo.md](docs/etapa-01-resumo.md) e [docs/etapa-02-resumo.md](docs/etapa-02-resumo.md).
 

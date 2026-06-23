@@ -359,4 +359,4 @@ clean-all: clean clean-data clean-venv  ## Limpa TUDO: caches + parquets + venv.
 .PHONY: fresh-install
 fresh-install: clean-all setup validate test  ## Simula avaliador clonando do zero (clean-all → setup → validate → test).
 	$(call _section,Instalação fresca completa)
-	$(call _ok,Projeto sobreviveu a um 'clone fresco' simulado — critério-chave do PDF (Reprodutibilidade 15%))
+	$(call _ok,Projeto sobreviveu a um 'clone fresco' simulado — reprodutibilidade garantida)
