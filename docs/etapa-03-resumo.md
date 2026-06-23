@@ -68,11 +68,11 @@ make compose-up     # MLflow server + treino, tudo containerizado
 ## 3. MLflow tracking
 
 - O `docker-compose.yml` sobe um **servidor MLflow** com backend **SQLite**
-  (`sqlite:///mlflow.db`) e artefatos em volume persistente. O backend de banco é o que
-  habilita o **Model Registry** (Etapa 4) — file store não suportaria.
+  (`sqlite:////mlflow/mlflow.db`, em volume persistente) e artefatos em volume. O backend
+  de banco é o que habilita o **Model Registry** (Etapa 4) — file store não suportaria.
 - O serviço de treino aponta `MLFLOW_TRACKING_URI` para o servidor e registra, a cada
-  execução: os parâmetros do `params.yaml`, as 4 métricas de ranking e uma tag com a
-  versão dos dados (rastreabilidade dado↔modelo).
+  execução: os parâmetros do `params.yaml`, as 4 métricas de ranking e — quando o contexto
+  DVC está disponível — uma tag com a versão dos dados (rastreabilidade dado↔modelo).
 - Localmente, sem o compose, o tracking cai em `./mlruns` (`make mlflow-ui`).
 
 ## 4. Qualidade e automação
