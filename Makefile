@@ -279,6 +279,41 @@ repro-check:  ## Gera datasets 2x e compara MD5 (deve ser idêntico — seed fix
 
 
 # =============================================================================
+# Pipeline DVC + MLflow + Docker (Etapa 3)
+# =============================================================================
+.PHONY: repro
+repro:  ## Roda a pipeline DVC completa (generate→evaluate).
+	$(call _section,Pipeline DVC — dvc repro)
+	@$(POETRY) run dvc repro
+
+.PHONY: metrics
+metrics:  ## Mostra as métricas rastreadas pelo DVC.
+	$(call _section,Métricas — dvc metrics show)
+	@$(POETRY) run dvc metrics show
+
+.PHONY: requirements
+requirements:  ## Regenera requirements.txt do lock (deps de runtime: main + pipeline).
+	$(call _section,Exportando requirements.txt (main,pipeline))
+	@$(POETRY) export -f requirements.txt --only main,pipeline --without-hashes -o requirements.txt
+	$(call _ok,requirements.txt atualizado)
+
+.PHONY: docker-build
+docker-build:  ## Builda a imagem Docker multi-stage (recsys:0.3.0).
+	$(call _section,Docker build — recsys:0.3.0)
+	@docker build -t recsys:0.3.0 .
+
+.PHONY: compose-up
+compose-up:  ## Sobe MLflow server + serviço de treino via docker compose.
+	$(call _section,docker compose up (MLflow server + treino))
+	@docker compose up --build
+
+.PHONY: mlflow-ui
+mlflow-ui:  ## Abre a UI do MLflow local (./mlruns) em http://localhost:5000.
+	$(call _section,MLflow UI — ./mlruns)
+	@$(POETRY) run mlflow ui --backend-store-uri ./mlruns
+
+
+# =============================================================================
 # Pipelines agregados (CI local)
 # =============================================================================
 .PHONY: check
