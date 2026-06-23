@@ -16,36 +16,42 @@ navegação dos usuários**. O modelo central é uma rede neural (MLP ou embeddi
 em PyTorch, com pipeline completo containerizado em Docker, dados versionados com DVC,
 experimentos rastreados no MLflow e código seguindo padrões profissionais de Clean Code.
 
-> **Status atual: Etapas 1 e 2 concluídas.** As demais etapas serão implementadas
+> **Status atual: Etapas 1, 2 e 3 concluídas.** As demais etapas serão implementadas
 > incrementalmente — ver [§ 5 Roadmap](#5-roadmap).
 
 ## Arquitetura planejada
 
 ```mermaid
 flowchart TD
-    A[scripts/generate_dataset.py<br/>Strategy: PopularityBiasedStrategy] --> B[data/raw/<br/>interactions.parquet]
+    A[DVC stage: generate<br/>Strategy: PopularityBiasedStrategy] --> B[data/raw/<br/>interactions.parquet]
     B --> C[DVC stage: preprocess<br/>Etapa 3]
     C --> D[data/interim/]
     D --> E[DVC stage: feature_eng<br/>Etapa 3]
     E --> F[data/processed/]
-    F --> G[DVC stage: train<br/>Etapa 4 — MLP PyTorch]
+    F --> G[DVC stage: train<br/>baseline Etapa 3 → MLP Etapa 4]
     F --> H[Baselines sklearn<br/>Etapa 4]
     G --> I[(MLflow tracking<br/>params, metrics, artifacts)]
     H --> I
-    I --> J[DVC stage: evaluate<br/>Etapa 4]
-    J --> K[MLflow Model Registry<br/>Staging → Production]
+    I --> J[DVC stage: evaluate<br/>Etapa 3]
+    J --> K[MLflow Model Registry<br/>Staging → Production — Etapa 4]
     K --> L[Docker image<br/>multi-stage — Etapa 3]
     L --> M[Deploy<br/>Etapa 4 bônus — K8s]
 
     style A fill:#16A34A,color:#fff
     style B fill:#16A34A,color:#fff
+    style C fill:#16A34A,color:#fff
+    style D fill:#16A34A,color:#fff
+    style E fill:#16A34A,color:#fff
+    style F fill:#16A34A,color:#fff
+    style G fill:#16A34A,color:#fff
     style I fill:#0194E2,color:#fff
+    style J fill:#16A34A,color:#fff
     style K fill:#0194E2,color:#fff
     style L fill:#2496ED,color:#fff
     style M fill:#326CE5,color:#fff
 ```
 
-> Legenda: nós em verde já estão implementados (Etapas 1 e 2). Demais estão como
+> Legenda: nós em verde já estão implementados (Etapas 1 a 3). Demais estão como
 > placeholder e serão habilitados nas próximas etapas.
 
 ## Design pattern aplicado (Strategy)
@@ -99,9 +105,12 @@ classDiagram
 - [x] Lock file `poetry.lock` commitado (Etapa 2)
 - [x] `Pydantic Settings` + `.env` real (Etapa 2)
 - [x] Script `scripts/validate_env.py` (Etapa 2)
-- [ ] `Dockerfile` multi-stage + `docker-compose.yml` (Etapa 3)
-- [ ] `dvc.yaml` com pipeline `preprocess → feature_eng → train → evaluate` (Etapa 3)
-- [ ] MLflow tracking + Model Registry com promoção a Production (Etapas 3-4)
+- [x] `Dockerfile` multi-stage + `docker-compose.yml` (Etapa 3)
+- [x] `dvc.yaml` com pipeline `generate → preprocess → feature_eng → train → evaluate` (Etapa 3)
+- [x] MLflow tracking (params, métricas, artefatos) com servidor SQLite (Etapa 3)
+- [x] Pipeline reprodutível via `dvc repro` + remote DVC local (Etapa 3)
+- [x] CI extra: pipeline em miniatura no PR + scan Trivy da imagem (Etapa 3)
+- [ ] MLflow Model Registry com promoção a Production (Etapa 4)
 - [ ] Rede neural PyTorch (MLP / embedding) + comparação com baselines sklearn (Etapa 4)
 - [ ] Model Card + vídeo STAR de 5 minutos (Etapa 4)
 - [ ] Deploy bônus em nuvem (Kubernetes — alinhado com as aulas gravadas)
@@ -127,6 +136,19 @@ poetry run pytest -v
 # 5. Rode o linter
 poetry run ruff check .
 ```
+
+### Pipeline reprodutível (Etapa 3)
+
+```bash
+# Roda a pipeline completa (generate → preprocess → feature_eng → train → evaluate)
+make repro          # = poetry run dvc repro
+make metrics        # mostra P@K, R@K, NDCG, MAP
+
+# Tudo containerizado: servidor MLflow (UI em http://localhost:5000) + treino
+make compose-up     # = docker compose up --build
+```
+
+Ver detalhes em [docs/etapa-03-resumo.md](docs/etapa-03-resumo.md).
 
 Saída esperada do passo 3:
 
