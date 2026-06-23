@@ -21,6 +21,9 @@ jobs:
   repro:
     name: dvc repro (dataset reduzido)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write   # comentar o diff de métricas no PR
     steps:
       - name: Checkout do código
         uses: actions/checkout@v4
@@ -57,3 +60,19 @@ jobs:
 
       - name: Mostrar métricas
         run: poetry run dvc metrics show
+
+      - name: Diff de métricas vs main
+        run: |
+          git fetch origin main:main || echo "sem branch main para comparar"
+          echo "## Métricas da pipeline (vs main)" > metrics_diff.md
+          echo '```' >> metrics_diff.md
+          poetry run dvc metrics diff main --md >> metrics_diff.md 2>/dev/null \
+            || poetry run dvc metrics show >> metrics_diff.md
+          echo '```' >> metrics_diff.md
+          cat metrics_diff.md
+
+      - name: Comentar diff de métricas no PR
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: metrics-diff
+          path: metrics_diff.md
