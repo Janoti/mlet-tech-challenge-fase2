@@ -46,7 +46,7 @@ jobs:
 
       - name: Reduzir params.yaml para execução rápida no CI
         run: |
-          python - <<'PY'
+          poetry run python - <<'PY'
           import yaml
           with open("params.yaml") as fh:
               params = yaml.safe_load(fh)

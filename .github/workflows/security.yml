@@ -24,11 +24,16 @@ jobs:
       - name: Build da imagem
         run: docker build -t recsys:ci .
 
+      - name: Instalar Trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sudo sh -s -- -b /usr/local/bin
+
       - name: Scan Trivy (falha em CRITICAL/HIGH com fix)
-        uses: aquasecurity/trivy-action@0.24.0
-        with:
-          image-ref: recsys:ci
-          format: table
-          exit-code: "1"
-          severity: CRITICAL,HIGH
-          ignore-unfixed: true
+        run: |
+          trivy image \
+            --exit-code 1 \
+            --severity CRITICAL,HIGH \
+            --ignore-unfixed \
+            --format table \
+            recsys:ci
