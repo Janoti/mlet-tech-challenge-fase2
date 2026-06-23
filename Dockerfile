@@ -19,6 +19,9 @@ RUN addgroup --system mlgroup && adduser --system --ingroup mlgroup mluser
 COPY --from=build /install /usr/local
 COPY src ./src
 COPY dvc.yaml params.yaml ./
+# .dvc/config (sem cache — excluído no .dockerignore) torna a imagem um repo DVC
+# autocontido: `dvc repro` roda a pipeline inteira dentro do container.
+COPY .dvc ./.dvc
 RUN mkdir -p data/raw data/interim data/processed models metrics \
     && chown -R mluser:mlgroup /app
 USER mluser
