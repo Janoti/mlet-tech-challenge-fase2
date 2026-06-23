@@ -34,7 +34,6 @@ pyarrow = "^17.0"               # Backend Parquet do pandas
 pydantic = "^2.9"
 pydantic-settings = "^2.5"      # Configuração via .env
 python-dotenv = "^1.0"
-torch = "^2.4"                  # Rede neural (MLP / embedding)
 scikit-learn = "^1.5"           # Pré-processamento e baselines
 mlflow = "^2.16"                # Tracking de experimentos e Model Registry
 scipy = "^1.14"                 # Métricas (NDCG, funções estatísticas)
@@ -63,6 +62,15 @@ nbconvert = "^7.17.1"
 # (poetry export --only main,pipeline) — separado das ferramentas de dev.
 [tool.poetry.group.pipeline.dependencies]
 dvc = "^3.0"                    # Versionamento de dados e pipeline reprodutível
+
+# ----------------------------------------------------------------------------
+# Dependências de deep learning (entram na imagem Docker a partir da Etapa 4)
+# ----------------------------------------------------------------------------
+# torch só é usado pela rede neural (Etapa 4). Mantê-lo em grupo próprio (ainda
+# instalado localmente por padrão) deixa a imagem da Etapa 3 enxuta — sem CUDA/
+# triton — exportando apenas `main,pipeline` no Dockerfile.
+[tool.poetry.group.dl.dependencies]
+torch = "^2.4"                  # Rede neural (MLP / embedding) — Etapa 4
 
 # ----------------------------------------------------------------------------
 # Console scripts — entrypoints dos stages do DVC (chamados no dvc.yaml).

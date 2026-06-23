@@ -38,5 +38,6 @@ notebooks
 !.env.example
 
 # Documentação e meta
-README.md
+# README.md é necessário no estágio de build (poetry-core lê o `readme` do
+# pyproject ao instalar o pacote). O estágio runtime não o copia.
 docs
