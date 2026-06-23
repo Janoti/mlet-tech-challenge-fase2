@@ -24,7 +24,7 @@ tudo containerizado com `docker compose up`.
 | Pipeline DVC com ≥ 3 stages | `dvc.yaml` com **5 stages**: `generate → preprocess → feature_eng → train → evaluate` |
 | MLflow tracking (params, métricas, artefatos) | Cada execução registra params, 4 métricas de ranking e tag de versão dos dados |
 | Pipeline em miniatura no CI (extra) | [pipeline.yml](../.github/workflows/pipeline.yml) — `dvc repro` reduzido a cada PR |
-| Scan de segurança da imagem (extra) | [security.yml](../.github/workflows/security.yml) — Trivy falha em CVE CRITICAL/HIGH |
+| Scan de segurança da imagem (extra) | [security.yml](../.github/workflows/security.yml) — Trivy publica CVEs CRITICAL/HIGH no PR (report-only; remediação do stack ML na Etapa 4) |
 | Diff de métricas no PR (extra) | comentário automático com `dvc metrics diff` |
 
 ## 1. Pipeline DVC (`dvc.yaml`) — 5 stages
