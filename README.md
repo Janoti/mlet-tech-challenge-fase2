@@ -191,17 +191,21 @@ purchase         1465
 
 ## 2. Pipeline e estrutura
 
-As Etapas 1 e 2 entregam a fundação. O fluxo completo (a ser construído nas próximas
-etapas) será orquestrado pelo DVC:
+As Etapas 1 a 3 entregam a fundação e o pipeline reprodutível. O fluxo é
+orquestrado pelo **DVC** (`dvc.yaml`, 5 stages) e já roda ponta a ponta:
 
 ```text
-data/raw/  →  preprocess  →  feature_eng  →  train (MLP)  →  evaluate
-                                       ↘  train (baselines sklearn)  ↗
+data/raw/  →  preprocess  →  feature_eng  →  train (baseline)  →  evaluate
+   (generate)                                  ↘  MLP PyTorch (Etapa 4)  ↗
 ```
 
-Cada estágio do DVC consumirá artefatos versionados do estágio anterior. Hoje,
-o nó-fonte (`data/raw/`) é populado via `scripts/generate_dataset.py` (base original)
-ou `scripts/generate_dataset_enriched.py` (base com sazonalidade, categorias e gênero).
+Cada estágio do DVC consome artefatos versionados do estágio anterior. O nó-fonte
+(`data/raw/`) é populado pelo stage `generate` (que reusa `scripts/generate_dataset.py`
+internamente) ou, fora do pipeline, por `scripts/generate_dataset_enriched.py`
+(base com sazonalidade, categorias e gênero). O modelo da Etapa 3 é um **baseline de
+popularidade** (`PopularityRecommender`); a rede neural PyTorch da Etapa 4 implementará
+a mesma interface `Recommender` e entrará no pipeline sem alterar os stages
+`train`/`evaluate`.
 
 ## 3. Dataset
 
@@ -254,8 +258,8 @@ Saída: `data/raw/interactions_enriched.parquet` com colunas `user_id`, `item_id
   Kaggle: gera o dataset em segundos.
 - **Foco didático** — concentra a complexidade no modelo, não no ETL do
   dataset real.
-- **Substituível na Etapa 3** — o dataset será versionado pelo DVC. Trocar
-  por RetailRocket real (ou MovieLens) é alterar apenas o stage `preprocess`,
+- **Substituível** — o dataset é versionado pelo DVC (Etapa 3). Trocar
+  por RetailRocket real (ou MovieLens) é alterar apenas o stage `generate`/`preprocess`,
   sem mexer no resto do pipeline.
 
 ## 4. Estrutura do repositório
@@ -263,15 +267,22 @@ Saída: `data/raw/interactions_enriched.parquet` com colunas `user_id`, `item_id
 ```text
 mlet-tech-challenge-fase2/
 ├── .github/workflows/
-│   └── ci.yml                       # CI: lint (ruff) + test (pytest) em paralelo
+│   ├── ci.yml                       # CI: lint (ruff) + test (pytest) em paralelo
+│   ├── pipeline.yml                 # Pipeline em miniatura: dvc repro reduzido a cada PR
+│   └── security.yml                 # Scan Trivy da imagem Docker (report-only)
+├── .dvc/                            # Config do DVC (init + remote local ./.dvcstore)
 ├── data/
-│   ├── raw/                         # Dataset bruto (versionado via DVC na Etapa 3)
-│   ├── interim/                     # Artefatos intermediários
-│   └── processed/                   # Splits prontos para treino
+│   ├── raw/                         # Dataset bruto — output do stage generate (DVC)
+│   ├── interim/                     # train/test do stage preprocess
+│   └── processed/                   # Features do stage feature_eng
 ├── docs/
 │   ├── etapa-01-resumo.md           # Resumo detalhado da Etapa 1
-│   └── etapa-02-resumo.md           # Resumo detalhado da Etapa 2
-├── models/                          # Artefatos de modelo (MLflow Registry, Etapa 4)
+│   ├── etapa-02-resumo.md           # Resumo detalhado da Etapa 2
+│   ├── etapa-03-resumo.md           # Resumo detalhado da Etapa 3 (Docker + DVC + MLflow)
+│   └── ml-canvas.md                 # ML Canvas do projeto (framework de Louis Dorard)
+├── metrics/
+│   └── metrics.json                 # Métricas do stage evaluate (P@K, R@K, NDCG, MAP)
+├── models/                          # Artefatos de modelo (baseline.pkl; Registry na Etapa 4)
 ├── notebooks/
 │   └── 01_eda.ipynb                 # EDA do dataset enriquecido (9 seções)
 ├── scripts/
@@ -281,31 +292,48 @@ mlet-tech-challenge-fase2/
 ├── src/recsys/
 │   ├── __init__.py
 │   ├── config.py                    # Pydantic Settings — fonte única de config
+│   ├── tracking.py                  # Camada fina sobre o MLflow (isola o tracking)
 │   ├── data/
 │   │   ├── factory.py               # Factory Method — cria geradores por modo
 │   │   ├── generator.py             # Strategy pattern + DatasetGenerator
 │   │   ├── generator_enriched.py    # Gerador com sazonalidade, categoria, gênero
 │   │   └── schema.py                # InteractionType (StrEnum) + constantes
-│   ├── models/                      # PyTorch + baselines (Etapas 3-4)
-│   ├── preprocessing/               # Estratégias de pré-processamento (Etapa 3)
+│   ├── preprocessing/
+│   │   ├── encoder.py               # IdEncoder — IDs → índices contíguos
+│   │   └── splitter.py              # temporal_split — split train/test sem vazamento
+│   ├── features/
+│   │   └── build_features.py        # Features de popularidade por item
+│   ├── models/
+│   │   ├── base.py                  # Recommender (ABC) — ponto de extensão
+│   │   └── baseline.py              # PopularityRecommender (baseline Etapa 3)
+│   ├── evaluation/
+│   │   └── metrics.py               # P@K, R@K, NDCG@K, MAP@K (funções puras)
+│   ├── pipeline/                    # Console scripts finos chamados pelo dvc.yaml
+│   │   ├── params.py                # Leitura de params.yaml
+│   │   ├── generate.py              # Stage generate
+│   │   ├── preprocess.py            # Stage preprocess
+│   │   ├── feature_eng.py           # Stage feature_eng
+│   │   ├── train.py                 # Stage train (+ MLflow)
+│   │   └── evaluate.py              # Stage evaluate (+ MLflow + metrics.json)
 │   └── utils/
+│       ├── logging_utils.py         # Logging estruturado (sem print)
 │       └── seed.py                  # set_global_seed centralizado
-├── tests/
-│   ├── config/
-│   │   └── test_config.py           # Settings: defaults, normalização, validação, env override
-│   ├── data/
-│   │   ├── test_factory.py          # Factory Method — criação por modo, estratégia, erro
-│   │   ├── test_generator.py        # Schema · Reprodutibilidade · Strategy · Validação
-│   │   └── test_generator_enriched.py # Schema · Reprodutibilidade · Validação (enriquecido)
-│   └── utils/
-│       ├── test_logging_utils.py
-│       └── test_seed.py
-├── .dockerignore                    # Pronto para Etapa 3 (Docker → K8s)
+├── tests/                           # 79 testes espelhando a estrutura de src/
+│   ├── config/ · data/ · preprocessing/ · features/
+│   ├── models/ · evaluation/ · pipeline/ · utils/
+│   └── test_tracking.py             # inclui smoke test do pipeline em dados reduzidos
+├── .dockerignore                    # Mantém dados/modelos/segredos fora do build
+├── .dvcignore
 ├── .env.example                     # Template de variáveis de ambiente
-├── .gitignore
 ├── .pre-commit-config.yaml          # Hooks locais (ruff + higiene)
 ├── .python-version                  # 3.11
-├── Makefile                         # Atalhos: make check, make data, make test, ...
+├── Dockerfile                       # Multi-stage (builder + runtime não-root)
+├── docker-compose.yml               # MLflow server (SQLite) + serviço de treino
+├── dvc.yaml                         # Pipeline: generate → … → evaluate (5 stages)
+├── dvc.lock                         # Lock dos hashes de cada stage
+├── params.yaml                      # Hiperparâmetros — fonte única (código/MLflow/DVC)
+├── requirements.txt                 # Deps de runtime exportadas do lock (Docker)
+├── Makefile                         # Atalhos: make repro, make check, make data, ...
 ├── pyproject.toml                   # Poetry + ruff + pytest (única fonte da verdade)
 └── README.md
 ```
@@ -316,11 +344,11 @@ mlet-tech-challenge-fase2/
 |---|---|---|---|
 | **1** | Clean Code e Estrutura | Estrutura, design patterns, linting, CI, gerador de dataset | ✅ Concluída |
 | **2** | Ambiente e Dependências | `poetry.lock`, `Pydantic Settings`, `.env`, `validate_env.py` | ✅ Concluída |
-| **3** | Containerização e Versionamento | `Dockerfile` multi-stage, `docker-compose`, `dvc init`, `dvc.yaml` (≥ 3 stages), MLflow tracking | ⏳ |
+| **3** | Containerização e Versionamento | `Dockerfile` multi-stage, `docker-compose`, `dvc init`, `dvc.yaml` (5 stages), MLflow tracking | ✅ Concluída |
 | **4** | Rede Neural, Registry e Entrega | MLP PyTorch, baselines sklearn (≥ 4 métricas), Model Registry → Production, Model Card, vídeo STAR | ⏳ |
 | **Bônus** | Deploy em nuvem | Kubernetes — container acessível via URL pública | ⏳ |
 
-Detalhes em [docs/etapa-01-resumo.md](docs/etapa-01-resumo.md) e [docs/etapa-02-resumo.md](docs/etapa-02-resumo.md).
+Detalhes em [docs/etapa-01-resumo.md](docs/etapa-01-resumo.md), [docs/etapa-02-resumo.md](docs/etapa-02-resumo.md) e [docs/etapa-03-resumo.md](docs/etapa-03-resumo.md).
 
 ## 6. Ambiente e instalação
 
@@ -347,16 +375,16 @@ Detalhes em [docs/etapa-01-resumo.md](docs/etapa-01-resumo.md) e [docs/etapa-02-
 |---|---|---|
 | 1 — Geração de dados | Não | Roda em qualquer CPU |
 | 2 — EDA e ambiente | Não | Roda em qualquer CPU |
-| 3 — Treino (PyTorch) | Recomendada | Funciona em CPU, mas lento |
-| 4 — Avaliação do modelo | Recomendada | Idem |
+| 3 — Pipeline (Docker + DVC + MLflow) | Não | Baseline de popularidade; roda em qualquer CPU (a imagem nem inclui PyTorch) |
+| 4 — Treino da rede neural (PyTorch) | Recomendada | Funciona em CPU, mas lento |
 
 **Instalação do PyTorch por hardware:**
 
 ```bash
-# CPU apenas (Etapas 1-2 ou máquina sem GPU)
+# CPU apenas (Etapas 1-3 ou máquina sem GPU)
 pip install torch --index-url https://download.pytorch.org/whl/cpu
 
-# GPU com CUDA 12.1 (recomendado para Etapa 3+)
+# GPU com CUDA 12.1 (recomendado para Etapa 4)
 pip install torch --index-url https://download.pytorch.org/whl/cu121
 
 # GPU com CUDA 11.8
@@ -364,8 +392,8 @@ pip install torch --index-url https://download.pytorch.org/whl/cu118
 ```
 
 > **Nota:** `poetry install` baixa a versão CPU por padrão (comportamento do PyPI).
-> Para treinar na GPU na Etapa 3, será necessário reinstalar o torch com o índice correto
-> para a versão de CUDA do seu hardware.
+> Para treinar a rede neural na GPU na Etapa 4, será necessário reinstalar o torch com o
+> índice correto para a versão de CUDA do seu hardware.
 
 ### 6.3 Instalação
 
@@ -467,22 +495,27 @@ poetry run pytest tests/data/test_generator.py -v          # arquivo específico
 poetry run pytest tests/data/test_generator.py::TestReproducibility -v
 ```
 
-Suítes de teste — **59 testes, 99% de cobertura**:
+Suítes de teste — **79 testes, 81% de cobertura** (`pytest --cov=recsys`):
 
-| Arquivo | Classe | Cobre |
-|---|---|---|
-| `tests/config/test_config.py` | `TestDefaults` | Valores default do Settings |
-| | `TestLogLevelNormalization` | Normalização para maiúsculas |
-| | `TestValidation` | Rejeição de valores inválidos |
-| | `TestEnvOverride` | Variáveis de ambiente sobrepõem defaults |
-| `tests/data/test_factory.py` | `TestDatasetGeneratorFactory` | Criação por modo, estratégia customizada, modo inválido |
-| `tests/data/test_generator.py` | `TestSchema` | Colunas, contagem, ranges de IDs, tipos válidos |
-| | `TestReproducibility` | Mesma seed ⇒ DataFrame idêntico |
-| | `TestStrategyPattern` | Zipf concentra mais que uniforme |
-| | `TestConfigValidation` | Rejeita inputs inválidos |
-| `tests/data/test_generator_enriched.py` | `TestSchema` | Schema enriquecido: category, user_gender, timestamp ordenado |
-| | `TestReproducibility` | Reprodutibilidade bit-a-bit |
-| | `TestConfigValidation` | Rejeita skew ≤ 1.0 e interações < 10k |
+| Arquivo | Cobre |
+|---|---|
+| `tests/config/test_config.py` | Settings: defaults, normalização de log level, validação, env override |
+| `tests/data/test_factory.py` | Factory Method: criação por modo, estratégia customizada, modo inválido |
+| `tests/data/test_generator.py` | Schema · Reprodutibilidade (mesma seed ⇒ DataFrame idêntico) · Strategy (Zipf concentra mais que uniforme) · Validação |
+| `tests/data/test_generator_enriched.py` | Schema enriquecido (category, user_gender, timestamp ordenado) · Reprodutibilidade · Validação |
+| `tests/preprocessing/test_encoder.py` | `IdEncoder`: mapeamento contíguo e inverso |
+| `tests/preprocessing/test_splitter.py` | `temporal_split`: corte temporal sem vazamento, validação de `test_size` |
+| `tests/features/test_build_features.py` | Features de popularidade: contagem e ordenação determinística |
+| `tests/models/test_baseline.py` | `PopularityRecommender`: ranking, exclusão de itens vistos, top-k |
+| `tests/evaluation/test_metrics.py` | P@K, R@K, NDCG@K, MAP@K com valores conferidos à mão |
+| `tests/pipeline/test_params.py` | Leitura de `params.yaml` |
+| `tests/pipeline/test_smoke_pipeline.py` | Smoke test: roda o pipeline em dados reduzidos ponta a ponta |
+| `tests/test_tracking.py` | Camada de tracking MLflow (URI, cross-link DVC best-effort) |
+| `tests/utils/test_logging_utils.py` · `test_seed.py` | Logging idempotente e seed global |
+
+> A cobertura caiu de 99% (Etapa 2) para 81% porque a Etapa 3 adicionou os stages do
+> pipeline (`pipeline/*.py`), cujas funções `main()` são exercitadas de ponta a ponta pelo
+> `dvc repro` e pelo smoke test, mas não 100% por testes unitários linha a linha.
 
 ### 8.3 Pre-commit (local)
 
@@ -535,11 +568,18 @@ Valor inválido cai silenciosamente em `INFO` — log nunca deve quebrar a app.
 
 ### 8.5 CI (GitHub Actions)
 
-Definido em [.github/workflows/ci.yml](.github/workflows/ci.yml). Roda em todo push
-e PR contra `main`:
+São **três workflows** acionados em push/PR contra `main`:
 
-- **Job `lint`** — `ruff check` + `ruff format --check` (segundos).
-- **Job `test`** — `poetry install` + `pytest --cov=recsys`.
+- [`ci.yml`](.github/workflows/ci.yml) — **Job `lint`** (`ruff check` + `ruff format --check`)
+  e **Job `test`** (`poetry install` + `pytest --cov=recsys`), em paralelo.
+- [`pipeline.yml`](.github/workflows/pipeline.yml) — **pipeline em miniatura**: roda
+  `dvc repro` com dataset reduzido a cada PR e comenta o `dvc metrics diff`, garantindo
+  que o pipeline continua reprodutível (Etapa 3).
+- [`security.yml`](.github/workflows/security.yml) — **scan Trivy** da imagem Docker em
+  toda PR contra `main`, publicando CVEs CRITICAL/HIGH no resumo do PR. É **report-only**
+  (não bloqueia o merge): parte dos CVEs vem do `mlflow 2.x` exigido pela fase e só some no
+  `mlflow 3.x`, cuja superfície (serving exposto) não é o uso deste projeto — remediação
+  revisitada na Etapa 4.
 
 Cache do `.venv` reduz execuções subsequentes de ~3 min para ~30 s após o `poetry.lock`
 ser commitado na Etapa 2.
@@ -572,18 +612,22 @@ ser commitado na Etapa 2.
 
 - [docs/etapa-01-resumo.md](docs/etapa-01-resumo.md) — resumo da Etapa 1: Clean Code, Strategy pattern, CI, gerador de dataset.
 - [docs/etapa-02-resumo.md](docs/etapa-02-resumo.md) — resumo da Etapa 2: Poetry, Pydantic Settings, .env, validate_env, EDA.
+- [docs/etapa-03-resumo.md](docs/etapa-03-resumo.md) — resumo da Etapa 3: Docker multi-stage, DVC, MLflow, pipeline reprodutível.
+- [docs/ml-canvas.md](docs/ml-canvas.md) — ML Canvas do projeto: problema de negócio, dados, tarefa de ML, métricas e decisões.
 
 Documentação adicional será criada conforme as etapas avançam:
 
-- `docs/etapa-03-resumo.md` (Docker + DVC + MLflow)
 - `docs/etapa-04-resumo.md` (PyTorch + Registry + Model Card)
 - `docs/model_card.md` (Model Card final, Etapa 4)
 
 ## 11. Próximos passos imediatos
 
-1. Iniciar Etapa 3 — `Dockerfile` multi-stage, `docker-compose.yml` com MLflow server, `dvc init` + `dvc.yaml` com ≥ 3 stages (`preprocess → feature_eng → train`).
-2. Configurar MLflow tracking nos scripts de treino (Etapa 3).
-3. Implementar modelo PyTorch (MLP / embedding) e baselines sklearn (Etapa 4).
+Etapas 1 a 3 concluídas. Foco agora na **Etapa 4**:
+
+1. Implementar a rede neural PyTorch (MLP / embedding) sobre a interface `Recommender`, entrando no pipeline sem alterar os stages `train`/`evaluate`.
+2. Comparar a rede com os baselines em ≥ 4 métricas (P@K, R@K, NDCG, MAP) e registrar tudo no MLflow.
+3. Promover o melhor modelo a **Production** via MLflow Model Registry e escrever o **Model Card**.
+4. (Bônus) Deploy do container em nuvem (Kubernetes) acessível via URL pública.
 
 ## 12. Contato
 
