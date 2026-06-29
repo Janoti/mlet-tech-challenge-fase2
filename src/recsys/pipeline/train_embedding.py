@@ -63,10 +63,13 @@ def main() -> int:
             version=registered.version,
             stage="Production",
         )
-        log_kv(logger, "model_registered",
-               name="EmbeddingRecommender",
-               version=registered.version,
-               stage="Production")
+        log_kv(
+            logger,
+            "model_registered",
+            name="EmbeddingRecommender",
+            version=registered.version,
+            stage="Production",
+        )
 
     log_kv(logger, "train_embedding_done", model_path=str(_MODEL))
     return 0
