@@ -56,7 +56,9 @@ jobs:
           PY
 
       - name: Rodar a pipeline (dvc repro)
-        run: poetry run dvc repro --force
+        # Stages de embedding requerem torch (grupo dl, excluído aqui para CI leve).
+        # train_embedding e evaluate_embedding são validados localmente com dvc repro.
+        run: poetry run dvc repro generate preprocess feature_eng train evaluate --force
 
       - name: Mostrar métricas
         run: poetry run dvc metrics show

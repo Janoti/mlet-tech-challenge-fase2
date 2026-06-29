@@ -16,8 +16,8 @@ navegação dos usuários**. O modelo central é uma rede neural (MLP ou embeddi
 em PyTorch, com pipeline completo containerizado em Docker, dados versionados com DVC,
 experimentos rastreados no MLflow e código seguindo padrões profissionais de Clean Code.
 
-> **Status atual: Etapas 1, 2 e 3 concluídas.** As demais etapas serão implementadas
-> incrementalmente — ver [§ 5 Roadmap](#5-roadmap).
+> **Status atual: Etapas 1, 2, 3 e 4 concluídas.** Deploy bônus (Kubernetes) pendente.
+> Ver [§ 5 Roadmap](#5-roadmap).
 
 ## Arquitetura planejada
 
@@ -110,9 +110,12 @@ classDiagram
 - [x] MLflow tracking (params, métricas, artefatos) com servidor SQLite (Etapa 3)
 - [x] Pipeline reprodutível via `dvc repro` + remote DVC local (Etapa 3)
 - [x] CI extra: pipeline em miniatura no PR + scan Trivy da imagem (Etapa 3)
-- [ ] MLflow Model Registry com promoção a Production (Etapa 4)
-- [ ] Rede neural PyTorch (MLP / embedding) + comparação com baselines sklearn (Etapa 4)
-- [ ] Model Card + vídeo STAR de 5 minutos (Etapa 4)
+- [x] EmbeddingRecommender (PyTorch MLP) + stages `train_embedding` / `evaluate_embedding` no DVC (Etapa 4)
+- [x] Sinal de personalização via afinidade usuário→categoria (`affinity_strength=3.0`) (Etapa 4)
+- [x] Documentação técnica `docs/etapa-04-modelo-embedding.md` (Etapa 4)
+- [ ] MLflow Model Registry com promoção a Production (Etapa 4 — pendente)
+- [ ] Model Card + vídeo STAR de 5 minutos (Etapa 4 — pendente)
+- [ ] Deploy bônus em nuvem (Kubernetes) — container acessível via URL pública
 - [ ] Deploy bônus em nuvem (Kubernetes) — container acessível via URL pública
 
 ## Quick Start

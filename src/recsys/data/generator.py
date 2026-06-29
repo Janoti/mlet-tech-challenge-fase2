@@ -49,7 +49,7 @@ from recsys.data.schema import (
     COLUMN_ITEM_ID,
     COLUMN_TIMESTAMP,
     COLUMN_USER_ID,
-    INTERACTION_COLUMNS,
+    INTERACTION_COLUMNS_BASIC,
     InteractionType,
 )
 from recsys.utils.logging_utils import get_logger
@@ -223,7 +223,7 @@ class DatasetGenerator:
             config: Parâmetros de geração.
 
         Returns:
-            DataFrame com as colunas de `INTERACTION_COLUMNS`, ordenado por
+            DataFrame com as colunas de `INTERACTION_COLUMNS_BASIC`, ordenado por
             timestamp crescente (ordem natural para séries temporais).
         """
         # Um único RNG é instanciado aqui e propagado — garante que duas
@@ -247,8 +247,7 @@ class DatasetGenerator:
                 COLUMN_ITEM_ID: item_ids.astype(np.int32),
                 COLUMN_INTERACTION_TYPE: interaction_types,
                 COLUMN_TIMESTAMP: timestamps,
-            },
-            columns=INTERACTION_COLUMNS,
+            }
         )
         return df.sort_values(COLUMN_TIMESTAMP).reset_index(drop=True)
 

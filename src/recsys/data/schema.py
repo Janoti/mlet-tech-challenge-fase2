@@ -35,13 +35,23 @@ COLUMN_USER_ID: Final[str] = "user_id"
 COLUMN_ITEM_ID: Final[str] = "item_id"
 COLUMN_INTERACTION_TYPE: Final[str] = "interaction_type"
 COLUMN_TIMESTAMP: Final[str] = "timestamp"
+COLUMN_CATEGORY: Final[str] = "category"
+COLUMN_USER_GENDER: Final[str] = "user_gender"
 
-# Ordem canônica das colunas no DataFrame final.
-# Manter como constante evita inconsistência entre quem escreve o parquet e
-# quem o lê em etapas posteriores.
+# Schema do gerador básico (4 colunas núcleo).
+INTERACTION_COLUMNS_BASIC: Final[tuple[str, ...]] = (
+    COLUMN_USER_ID,
+    COLUMN_ITEM_ID,
+    COLUMN_INTERACTION_TYPE,
+    COLUMN_TIMESTAMP,
+)
+
+# Schema completo do gerador enriquecido (gerador padrão do pipeline).
 INTERACTION_COLUMNS: Final[tuple[str, ...]] = (
     COLUMN_USER_ID,
     COLUMN_ITEM_ID,
+    COLUMN_CATEGORY,
+    COLUMN_USER_GENDER,
     COLUMN_INTERACTION_TYPE,
     COLUMN_TIMESTAMP,
 )
