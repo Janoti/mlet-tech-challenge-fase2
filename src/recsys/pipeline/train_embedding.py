@@ -52,6 +52,22 @@ def main() -> int:
         with _MODEL.open("wb") as fh:
             pickle.dump(model, fh)
 
+        mlflow.log_artifact(str(_MODEL), artifact_path="model")
+        model_uri = f"runs:/{mlflow.active_run().info.run_id}/model/embedding.pkl"
+
+        registered = mlflow.register_model(model_uri, "EmbeddingRecommender")
+
+        client = mlflow.MlflowClient()
+        client.transition_model_version_stage(
+            name="EmbeddingRecommender",
+            version=registered.version,
+            stage="Production",
+        )
+        log_kv(logger, "model_registered",
+               name="EmbeddingRecommender",
+               version=registered.version,
+               stage="Production")
+
     log_kv(logger, "train_embedding_done", model_path=str(_MODEL))
     return 0
 

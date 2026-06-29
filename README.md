@@ -113,9 +113,8 @@ classDiagram
 - [x] EmbeddingRecommender (PyTorch MLP) + stages `train_embedding` / `evaluate_embedding` no DVC (Etapa 4)
 - [x] Sinal de personalização via afinidade usuário→categoria (`affinity_strength=3.0`) (Etapa 4)
 - [x] Documentação técnica `docs/etapa-04-modelo-embedding.md` (Etapa 4)
-- [ ] MLflow Model Registry com promoção a Production (Etapa 4 — pendente)
+- [x] MLflow Model Registry com promoção a Production (`EmbeddingRecommender` v1 → Production) (Etapa 4)
 - [ ] Model Card + vídeo STAR de 5 minutos (Etapa 4 — pendente)
-- [ ] Deploy bônus em nuvem (Kubernetes) — container acessível via URL pública
 - [ ] Deploy bônus em nuvem (Kubernetes) — container acessível via URL pública
 
 ## Quick Start

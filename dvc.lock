@@ -142,8 +142,8 @@ stages:
       size: 7573
     - path: src/recsys/pipeline/train_embedding.py
       hash: md5
-      md5: 27d5ee310c2dd0999a2c582a1b30169e
-      size: 1956
+      md5: adc64506d106a791df13706db2d787c3
+      size: 2558
     - path: src/recsys/preprocessing/encoder.py
       hash: md5
       md5: 6a049076fc3275b0321fe93ed24ad23a
@@ -160,7 +160,7 @@ stages:
     outs:
     - path: models/embedding.pkl
       hash: md5
-      md5: fc2e8cddff98221c907f3745f0e86e1a
+      md5: b66c1918e53a1fbf8f7fc4d27a494b52
       size: 837799
   evaluate_embedding:
     cmd: recsys-evaluate-embedding

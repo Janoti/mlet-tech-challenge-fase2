@@ -296,6 +296,46 @@ Cada execução de treino é registrada no MLflow com:
 - Métricas de capacidade (`train_n_users`, `train_n_items`)
 - Tag com versão dos dados DVC
 
+### MLflow Model Registry
+
+Ao final do stage `train_embedding`, o modelo treinado é promovido automaticamente
+ao **MLflow Model Registry** sem nenhuma intervenção manual:
+
+```python
+# 1. Registra o artefato no run ativo
+mlflow.log_artifact("models/embedding.pkl", artifact_path="model")
+
+# 2. Cria (ou incrementa) a entrada no Registry
+registered = mlflow.register_model(model_uri, "EmbeddingRecommender")
+
+# 3. Promove para Production
+client.transition_model_version_stage(
+    name="EmbeddingRecommender",
+    version=registered.version,
+    stage="Production",
+)
+```
+
+**Fluxo completo a cada `dvc repro train_embedding`:**
+
+```
+treino → pickle.dump → log_artifact → register_model → transition → Production
+                                                ↓
+                                  EmbeddingRecommender v1 (Production)
+                                  EmbeddingRecommender v2 (Production)  ← próxima run
+                                  ...
+```
+
+Cada re-execução cria uma nova versão no Registry — o histórico de versões fica
+preservado para auditoria e rollback. A versão mais recente promovida a
+`Production` é o modelo "oficial" em uso.
+
+Para inspecionar via UI:
+
+```bash
+poetry run mlflow ui  # acessa http://localhost:5000 → Models → EmbeddingRecommender
+```
+
 ---
 
 ## 8. Métricas e resultados
