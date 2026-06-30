@@ -18,7 +18,7 @@ from recsys.data.generator import (
     PopularityBiasedStrategy,
     UniformInteractionStrategy,
 )
-from recsys.data.schema import INTERACTION_COLUMNS, InteractionType
+from recsys.data.schema import INTERACTION_COLUMNS_BASIC, InteractionType
 
 
 # ----------------------------------------------------------------------------
@@ -41,7 +41,7 @@ class TestSchema:
     def test_columns_match_schema(self, small_config: GenerationConfig) -> None:
         generator = DatasetGenerator(strategy=UniformInteractionStrategy())
         df = generator.generate(small_config)
-        assert tuple(df.columns) == INTERACTION_COLUMNS
+        assert tuple(df.columns) == INTERACTION_COLUMNS_BASIC
 
     def test_row_count_matches_config(self, small_config: GenerationConfig) -> None:
         generator = DatasetGenerator(strategy=UniformInteractionStrategy())

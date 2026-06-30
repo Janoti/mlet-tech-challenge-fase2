@@ -5,7 +5,16 @@ generate:
   num_users: 2000
   num_items: 500
   num_interactions: 50000
+  affinity_strength: 3.0
+  n_pref_categories: 2
 preprocess:
   test_size: 0.2
 evaluate:
   top_k: 10
+embedding:
+  emb_dim: 64
+  hidden_dim: 128
+  lr: 0.001
+  epochs: 30
+  batch_size: 1024
+  neg_samples: 8

@@ -3,7 +3,7 @@ stages:
     cmd: recsys-generate
     deps:
       - src/recsys/pipeline/generate.py
-      - src/recsys/data/generator.py
+      - src/recsys/data/generator_enriched.py
       - src/recsys/data/factory.py
     params:
       - generate
@@ -48,4 +48,27 @@ stages:
       - evaluate
     metrics:
       - metrics/metrics.json:
+          cache: false
+  train_embedding:
+    cmd: recsys-train-embedding
+    deps:
+      - src/recsys/pipeline/train_embedding.py
+      - src/recsys/models/embedding.py
+      - src/recsys/preprocessing/encoder.py
+      - data/interim/train.parquet
+    params:
+      - embedding
+    outs:
+      - models/embedding.pkl
+  evaluate_embedding:
+    cmd: recsys-evaluate-embedding
+    deps:
+      - src/recsys/pipeline/evaluate_embedding.py
+      - src/recsys/evaluation/metrics.py
+      - models/embedding.pkl
+      - data/interim/test.parquet
+    params:
+      - evaluate
+    metrics:
+      - metrics/metrics_embedding.json:
           cache: false

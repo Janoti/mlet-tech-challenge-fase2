@@ -1,13 +1,18 @@
-"""Gerador enriquecido: sazonalidade semanal, categorias de produto e gênero.
+"""Gerador enriquecido: sazonalidade semanal, categorias, gênero e afinidade.
 
-Versão alternativa ao ``generator.py`` que adiciona três dimensões de realismo:
+Versão alternativa ao ``generator.py`` com quatro dimensões de realismo:
 
+- **Afinidade usuário→categoria**: cada usuário tem ``n_pref_categories``
+  categorias preferidas; itens dessas categorias recebem peso
+  ``affinity_strength`` vezes maior na amostragem — cria o sinal de
+  personalização que o modelo de embeddings precisa para superar o baseline
+  de popularidade.
 - **Sazonalidade semanal**: fins de semana concentram 2.5× mais tráfego por
   dia e têm funil com maior taxa de purchase (6% vs 2% em dias úteis).
 - **Categoria de produto**: cada item pertence a uma das 5 categorias;
   permite análise por segmento no EDA e uso como feature no modelo.
 - **Gênero do usuário**: atributo fixo por usuário; útil para análise de
-  fairness no Model Card (alinhado com o que foi feito na Fase 1).
+  fairness no Model Card.
 
 Mantém as mesmas convenções do ``generator.py``:
     - Funções ≤ 20 linhas.
@@ -32,18 +37,15 @@ _logger = get_logger(__name__)
 CATEGORIES: Final[tuple[str, ...]] = ("eletronicos", "moda", "casa", "esportes", "beleza")
 
 # ── Funil de interações por período ──────────────────────────────────────────
-# (view_prob, add_to_cart_prob, purchase_prob) — soma = 1.0 em cada tupla.
 _WEEKDAY_FUNNEL: Final[tuple[float, float, float]] = (0.87, 0.11, 0.02)
 _WEEKEND_FUNNEL: Final[tuple[float, float, float]] = (0.80, 0.14, 0.06)
 
-# Fins de semana recebem 2.5× mais tráfego por dia que dias úteis.
 _WEEKEND_TRAFFIC_WEIGHT: Final[float] = 2.5
 
 # ── Gênero do usuário ─────────────────────────────────────────────────────────
 GENDERS: Final[tuple[str, ...]] = ("M", "F", "NB")
 _GENDER_PROBS: Final[tuple[float, float, float]] = (0.48, 0.47, 0.05)
 
-# Ordem fixa para rng.choice (deve coincidir com os funis acima).
 _INTERACTION_VALUES: Final[list[str]] = ["view", "add_to_cart", "purchase"]
 
 _SECONDS_PER_DAY: Final[int] = 24 * 3600
@@ -61,6 +63,8 @@ class EnrichedGenerationConfig:
         time_window_days: Janela temporal em dias.
         item_skew: Expoente Zipf para popularidade de itens (> 1.0).
         user_skew: Expoente Zipf para atividade de usuários (> 1.0).
+        n_pref_categories: Categorias preferidas por usuário (1 a len(CATEGORIES)).
+        affinity_strength: Peso extra dos itens nas categorias preferidas (>= 1.0).
     """
 
     num_users: int
@@ -70,6 +74,8 @@ class EnrichedGenerationConfig:
     time_window_days: int = 90
     item_skew: float = 1.2
     user_skew: float = 1.1
+    n_pref_categories: int = 2
+    affinity_strength: float = 3.0
 
     def __post_init__(self) -> None:
         """Valida parâmetros no construtor — falha cedo."""
@@ -79,14 +85,16 @@ class EnrichedGenerationConfig:
             raise ValueError("num_interactions deve ser >= 10.000 (requisito)")
         if self.item_skew <= 1.0 or self.user_skew <= 1.0:
             raise ValueError("item_skew e user_skew devem ser > 1.0")
+        if not 1 <= self.n_pref_categories <= len(CATEGORIES):
+            raise ValueError(
+                f"n_pref_categories deve estar entre 1 e {len(CATEGORIES)}"
+            )
+        if self.affinity_strength < 1.0:
+            raise ValueError("affinity_strength deve ser >= 1.0")
 
 
 class EnrichedDatasetGenerator:
-    """Gera dataset de interações com sazonalidade, categorias e gênero.
-
-    Não usa o padrão Strategy (diferente do ``DatasetGenerator``) porque
-    sazonalidade e categorias são parte intrínseca do mecanismo — não faz
-    sentido trocá-las independentemente. Manter simples > manter consistente.
+    """Gera dataset de interações com sazonalidade, categorias, gênero e afinidade.
 
     Exemplo:
         >>> config = EnrichedGenerationConfig(
@@ -109,13 +117,18 @@ class EnrichedDatasetGenerator:
         """
         rng = np.random.default_rng(config.seed)
         _logger.info(
-            "generate_enriched_started | num_interactions=%d seed=%d",
+            "generate_enriched_started | num_interactions=%d seed=%d affinity_strength=%.1f",
             config.num_interactions,
             config.seed,
+            config.affinity_strength,
         )
-        user_ids, item_ids = self._sample_pairs(config, rng)
+        # Mapas fixos gerados antes do sampling — determinam o sinal de afinidade
         item_cat_map = self._build_item_category_map(config.num_items, rng)
         user_gender_map = self._build_user_gender_map(config.num_users, rng)
+        user_pref_cats = self._build_user_preferred_categories(
+            config.num_users, config.n_pref_categories, rng
+        )
+        user_ids, item_ids = self._sample_pairs(config, rng, item_cat_map, user_pref_cats)
         timestamps, is_weekend = self._sample_seasonal_timestamps(config, rng)
         interaction_types = self._sample_interaction_types(
             config.num_interactions, is_weekend, rng
@@ -127,19 +140,6 @@ class EnrichedDatasetGenerator:
         return df.sort_values("timestamp").reset_index(drop=True)
 
     @staticmethod
-    def _sample_pairs(
-        config: EnrichedGenerationConfig,
-        rng: np.random.Generator,
-    ) -> tuple[np.ndarray, np.ndarray]:
-        """Amostra pares (user_id, item_id) com distribuição de Zipf truncada."""
-        def _zipf(n_distinct: int, n_samples: int, skew: float) -> np.ndarray:
-            return (rng.zipf(skew, size=n_samples) - 1) % n_distinct
-
-        user_ids = _zipf(config.num_users, config.num_interactions, config.user_skew)
-        item_ids = _zipf(config.num_items, config.num_interactions, config.item_skew)
-        return user_ids, item_ids
-
-    @staticmethod
     def _build_item_category_map(num_items: int, rng: np.random.Generator) -> np.ndarray:
         """Retorna array de índice de categoria por item_id (fixo por seed)."""
         return rng.integers(0, len(CATEGORIES), size=num_items)
@@ -149,16 +149,59 @@ class EnrichedDatasetGenerator:
         """Retorna array de índice de gênero por user_id (fixo por seed)."""
         return rng.choice(len(GENDERS), size=num_users, p=list(_GENDER_PROBS))
 
+    @staticmethod
+    def _build_user_preferred_categories(
+        num_users: int, n_pref: int, rng: np.random.Generator
+    ) -> np.ndarray:
+        """Sorteia ``n_pref`` categorias preferidas por usuário (sem repetição).
+
+        Returns:
+            Array de shape ``(num_users, n_pref)`` com índices de categoria.
+        """
+        # permuted embaralha cada linha independentemente — garante preferências distintas
+        all_cats = np.tile(np.arange(len(CATEGORIES)), (num_users, 1))
+        shuffled = rng.permuted(all_cats, axis=1)
+        return shuffled[:, :n_pref]
+
+    @staticmethod
+    def _sample_pairs(
+        config: EnrichedGenerationConfig,
+        rng: np.random.Generator,
+        item_cat_map: np.ndarray,
+        user_pref_cats: np.ndarray,
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Amostra pares (user_id, item_id) com afinidade por categoria.
+
+        Usuários são sorteados com Zipf. Itens são sorteados com pesos
+        personalizados: categorias preferidas recebem peso ``affinity_strength``,
+        as demais recebem peso 1.0 — cria o sinal de personalização.
+        """
+        def _zipf(n_distinct: int, n_samples: int, skew: float) -> np.ndarray:
+            return (rng.zipf(skew, size=n_samples) - 1) % n_distinct
+
+        user_ids = _zipf(config.num_users, config.num_interactions, config.user_skew)
+        all_items = np.arange(config.num_items)
+        item_ids = np.empty(config.num_interactions, dtype=np.int64)
+
+        for uid in np.unique(user_ids):
+            mask = user_ids == uid
+            pref_cats = user_pref_cats[uid]
+            weights = np.where(
+                np.isin(item_cat_map, pref_cats),
+                float(config.affinity_strength),
+                1.0,
+            )
+            weights = weights / weights.sum()
+            item_ids[mask] = rng.choice(all_items, size=int(mask.sum()), p=weights)
+
+        return user_ids.astype(np.int64), item_ids
+
     def _sample_seasonal_timestamps(
         self,
         config: EnrichedGenerationConfig,
         rng: np.random.Generator,
     ) -> tuple[np.ndarray, np.ndarray]:
-        """Timestamps com concentração maior nos fins de semana.
-
-        Returns:
-            Tupla ``(timestamps, is_weekend)`` onde ``is_weekend`` é bool array.
-        """
+        """Timestamps com concentração maior nos fins de semana."""
         end_utc = datetime.now(tz=UTC)
         start = (end_utc - timedelta(days=config.time_window_days)).replace(tzinfo=None)
         day_weights = self._compute_day_weights(start, config.time_window_days)

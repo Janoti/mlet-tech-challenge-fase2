@@ -18,6 +18,7 @@ from recsys.data.generator_enriched import (
     EnrichedDatasetGenerator,
     EnrichedGenerationConfig,
 )
+from recsys.data.schema import COLUMN_CATEGORY, COLUMN_USER_ID
 
 
 # ----------------------------------------------------------------------------
@@ -129,3 +130,50 @@ class TestConfigValidation:
             EnrichedGenerationConfig(
                 num_users=10, num_items=10, num_interactions=10_000, user_skew=1.0
             )
+
+    def test_n_pref_categories_zero_raises(self) -> None:
+        with pytest.raises(ValueError, match="n_pref_categories"):
+            EnrichedGenerationConfig(
+                num_users=10, num_items=10, num_interactions=10_000, n_pref_categories=0
+            )
+
+    def test_affinity_strength_below_one_raises(self) -> None:
+        with pytest.raises(ValueError, match="affinity_strength"):
+            EnrichedGenerationConfig(
+                num_users=10, num_items=10, num_interactions=10_000, affinity_strength=0.5
+            )
+
+
+# ============================================================================
+# Afinidade usuário→categoria — o sinal de personalização.
+# ============================================================================
+class TestCategoryAffinity:
+    """Usuários devem concentrar mais interações em suas categorias preferidas."""
+
+    def test_top_category_fraction_above_random(self, small_df: pd.DataFrame) -> None:
+        """A categoria modal por usuário deve superar a fração aleatória (1/5=0.20)."""
+        top_fracs = (
+            small_df.groupby(COLUMN_USER_ID)[COLUMN_CATEGORY]
+            .value_counts(normalize=True)
+            .groupby(level=0)
+            .first()
+        )
+        # Com affinity_strength=3.0 e n_pref_categories=2, cada categoria
+        # preferida recebe ~33% das interações — bem acima do acaso (20%).
+        assert top_fracs.mean() > 0.25
+
+    def test_affinity_strength_one_is_uniform(self) -> None:
+        """affinity_strength=1.0 deve produzir distribuição próxima ao uniforme."""
+        cfg = EnrichedGenerationConfig(
+            num_users=200, num_items=100, num_interactions=10_000,
+            seed=42, affinity_strength=1.0,
+        )
+        df = EnrichedDatasetGenerator().generate(cfg)
+        top_fracs = (
+            df.groupby(COLUMN_USER_ID)[COLUMN_CATEGORY]
+            .value_counts(normalize=True)
+            .groupby(level=0)
+            .first()
+        )
+        # Sem afinidade a fração modal deve ficar próxima de 1/5 = 0.20
+        assert top_fracs.mean() < 0.32
