@@ -445,7 +445,8 @@ Usuários não presentes no dado de treino causariam `KeyError` no `IdEncoder`.
 O método `recommend()` captura essa exceção e retorna lista vazia. Para garantir
 que todo usuário receba recomendações, o pipeline envolve o modelo em um
 `FallbackRecommender` (`src/recsys/models/fallback.py`): quando o primário
-retorna vazio, o fallback delega ao `PopularityRecommender` e retorna os
+retorna vazio **ou lança qualquer exceção** (ex.: modelo não inicializado),
+o fallback delega ao `PopularityRecommender` e retorna os
 top-k itens globalmente mais populares.
 
 ---
