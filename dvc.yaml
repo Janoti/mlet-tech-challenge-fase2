@@ -49,6 +49,30 @@ stages:
     metrics:
       - metrics/metrics.json:
           cache: false
+  train_svd:
+    cmd: recsys-train-svd
+    deps:
+      - src/recsys/pipeline/train_svd.py
+      - src/recsys/models/svd.py
+      - src/recsys/preprocessing/encoder.py
+      - data/interim/train.parquet
+    params:
+      - svd
+    outs:
+      - models/svd.pkl
+  evaluate_svd:
+    cmd: recsys-evaluate-svd
+    deps:
+      - src/recsys/pipeline/evaluate_svd.py
+      - src/recsys/pipeline/evaluate.py
+      - src/recsys/evaluation/metrics.py
+      - models/svd.pkl
+      - data/interim/test.parquet
+    params:
+      - evaluate
+    metrics:
+      - metrics/metrics_svd.json:
+          cache: false
   train_embedding:
     cmd: recsys-train-embedding
     deps:
