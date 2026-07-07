@@ -86,6 +86,11 @@ def main() -> int:
         embedding = pickle.load(fh)
     with _BASELINE_MODEL.open("rb") as fh:
         baseline = pickle.load(fh)
+    # Avalia o sistema completo (embedding + fallback de popularidade para cold-start).
+    # As métricas resultantes refletem o comportamento em produção, não o embedding isolado.
+    # O gate de promoção compara essas métricas contra o baseline puro (metrics.json),
+    # o que é uma comparação sistema-vs-modelo — aceitável para este projeto, mas vale
+    # notar que cold-start users contribuem com recomendações do fallback, não do embedding.
     model = FallbackRecommender(embedding, baseline)
     test = pd.read_parquet(_TEST)
     metrics = _mean_metrics(model, _relevant_by_user(test), k)
