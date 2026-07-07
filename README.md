@@ -308,7 +308,11 @@ mlet-tech-challenge-fase2/
 │   │   └── build_features.py        # Features de popularidade por item
 │   ├── models/
 │   │   ├── base.py                  # Recommender (ABC) — ponto de extensão
-│   │   └── baseline.py              # PopularityRecommender (baseline Etapa 3)
+│   │   ├── baseline.py              # PopularityRecommender (baseline Etapa 3)
+│   │   ├── svd.py                   # SvdRecommender — matrix factorization (sklearn)
+│   │   ├── embedding.py             # EmbeddingRecommender — MLP PyTorch (Etapa 4)
+│   │   ├── early_stopping.py        # EarlyStopping por NDCG de validação
+│   │   └── fallback.py              # FallbackRecommender — cold-start via popularidade
 │   ├── evaluation/
 │   │   └── metrics.py               # P@K, R@K, NDCG@K, MAP@K (funções puras)
 │   ├── pipeline/                    # Console scripts finos chamados pelo dvc.yaml

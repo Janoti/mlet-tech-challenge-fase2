@@ -69,8 +69,9 @@ baseline na métrica primária (NDCG@10) — evita colocar em produção um mode
 
 ## 5. Limitações
 
-- **Cold-start:** usuários ou itens ausentes no treino não têm embedding; `recommend`
-  retorna lista vazia (sem fallback silencioso para popularidade).
+- **Cold-start:** usuários ausentes no treino não têm embedding; o pipeline usa
+  `FallbackRecommender` que delega automaticamente ao `PopularityRecommender`,
+  garantindo que todo usuário receba recomendações (top-k globalmente populares).
 - **Valores absolutos baixos:** o dado sintético com afinidade por categoria é
   deliberadamente difícil; em dados reais (histórico mais longo, sinais de compra) as
   métricas absolutas tendem a ser bem maiores.

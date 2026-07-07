@@ -90,7 +90,9 @@ stages:
       - src/recsys/pipeline/evaluate_embedding.py
       - src/recsys/evaluation/metrics.py
       - models/embedding.pkl
+      - models/baseline.pkl
       - data/interim/test.parquet
+      - metrics/metrics.json
     params:
       - evaluate
     metrics:
