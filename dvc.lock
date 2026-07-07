@@ -5,16 +5,16 @@ stages:
     deps:
     - path: src/recsys/data/factory.py
       hash: md5
-      md5: db9aec3d4ebdd096409fc8e574798206
-      size: 2247
+      md5: 06be63441b85623f78b87be67569b8e0
+      size: 2310
     - path: src/recsys/data/generator_enriched.py
       hash: md5
-      md5: a3d1d18e5d4c65141a2ec30ac999abed
-      size: 11578
+      md5: 777c76a52992258c32db1b7e9da6870a
+      size: 11844
     - path: src/recsys/pipeline/generate.py
       hash: md5
-      md5: 1557cb4ceca4897523c9f0ab311c4bbb
-      size: 1576
+      md5: 2fc540f7a1766613eb2f9ce05d2c7ac5
+      size: 1620
     params:
       params.yaml:
         generate:
@@ -38,12 +38,12 @@ stages:
       size: 569562
     - path: src/recsys/pipeline/preprocess.py
       hash: md5
-      md5: 5b3819acc82fed37d7348ffa4add56e5
-      size: 1042
+      md5: d924459e76db16c17ac528a99aee5945
+      size: 1075
     - path: src/recsys/preprocessing/splitter.py
       hash: md5
-      md5: e0ce8b6d7f64e8f1b5d0f145ea4308e0
-      size: 1450
+      md5: 6760a611b23209df31b5fc7a223993be
+      size: 1487
     params:
       params.yaml:
         preprocess:
@@ -66,12 +66,12 @@ stages:
       size: 458648
     - path: src/recsys/features/build_features.py
       hash: md5
-      md5: 974c667963403c4a7baca4bfc3950a04
-      size: 817
+      md5: 2b7df2d7f1e734f2b7581a7f9678b059
+      size: 842
     - path: src/recsys/pipeline/feature_eng.py
       hash: md5
-      md5: 8c9faff0d0f3ed434ec908d1572f7b7b
-      size: 888
+      md5: d76e0e956b49a28622bfa47702a49e22
+      size: 918
     outs:
     - path: data/processed/popularity.parquet
       hash: md5
@@ -90,12 +90,12 @@ stages:
       size: 4850
     - path: src/recsys/models/baseline.py
       hash: md5
-      md5: c150df8653ad59a0e4a553a0abe094db
-      size: 1855
+      md5: 0a5bd65e489431b13f9d9f5e25720cf5
+      size: 1905
     - path: src/recsys/pipeline/train.py
       hash: md5
-      md5: 6bd62185e0cad3083a7e4e26810b57b7
-      size: 1572
+      md5: c8852811a7eaf40bd9d2d856c7766bca
+      size: 1619
     outs:
     - path: models/baseline.pkl
       hash: md5
@@ -114,12 +114,12 @@ stages:
       size: 94303
     - path: src/recsys/evaluation/metrics.py
       hash: md5
-      md5: 315a7365e317267608000f6b0af1344b
-      size: 1628
+      md5: a0801427fe1e3325b7161d4858cb8524
+      size: 1674
     - path: src/recsys/pipeline/evaluate.py
       hash: md5
-      md5: bc1cb39389ade3537293f600ba1318c0
-      size: 2356
+      md5: 2cd2e301fecb2f579b3381005d40ad79
+      size: 2425
     params:
       params.yaml:
         evaluate:
@@ -127,8 +127,8 @@ stages:
     outs:
     - path: metrics/metrics.json
       hash: md5
-      md5: 983d7dd490e328c782131f4bc81da93a
-      size: 155
+      md5: b926bc910ba72dc656e33bf667a5240e
+      size: 160
   train_embedding:
     cmd: recsys-train-embedding
     deps:
@@ -138,16 +138,16 @@ stages:
       size: 458648
     - path: src/recsys/models/embedding.py
       hash: md5
-      md5: 66bac4096632971bd15e5355d31562f6
-      size: 12016
+      md5: 005d2588dd2c4a18bff581562135f975
+      size: 12301
     - path: src/recsys/pipeline/train_embedding.py
       hash: md5
-      md5: 1cd3c2197005ddca803d0d1378f0df72
-      size: 2306
+      md5: 06a8a73a64bc61c746311f4a88f40371
+      size: 2375
     - path: src/recsys/preprocessing/encoder.py
       hash: md5
-      md5: f66a4a319effd4625d304c4c0b65500c
-      size: 1317
+      md5: 6a049076fc3275b0321fe93ed24ad23a
+      size: 1353
     params:
       params.yaml:
         embedding:
@@ -163,8 +163,8 @@ stages:
     outs:
     - path: models/embedding.pkl
       hash: md5
-      md5: 086f748f41f92502228fe732dfbd5dd6
-      size: 1349500
+      md5: eadf667ddc895884e4e71056a7251a0a
+      size: 1349590
   evaluate_embedding:
     cmd: recsys-evaluate-embedding
     deps:
@@ -172,18 +172,26 @@ stages:
       hash: md5
       md5: a5efe07c5c1b734eb5d759ada6a5ff9b
       size: 122585
+    - path: metrics/metrics.json
+      hash: md5
+      md5: b926bc910ba72dc656e33bf667a5240e
+      size: 160
+    - path: models/baseline.pkl
+      hash: md5
+      md5: 9c9ac60e4b0dc8aff1757942ae2c0c10
+      size: 94303
     - path: models/embedding.pkl
       hash: md5
-      md5: 086f748f41f92502228fe732dfbd5dd6
-      size: 1349500
+      md5: eadf667ddc895884e4e71056a7251a0a
+      size: 1349590
     - path: src/recsys/evaluation/metrics.py
       hash: md5
-      md5: 315a7365e317267608000f6b0af1344b
-      size: 1628
+      md5: a0801427fe1e3325b7161d4858cb8524
+      size: 1674
     - path: src/recsys/pipeline/evaluate_embedding.py
       hash: md5
-      md5: 55d72edb6110702b9063a03e9156f9bd
-      size: 3565
+      md5: 613152450439365866d3ffd825887f0d
+      size: 3906
     params:
       params.yaml:
         evaluate:
@@ -191,8 +199,8 @@ stages:
     outs:
     - path: metrics/metrics_embedding.json
       hash: md5
-      md5: 5ec4ccb3b08d172dada86bc84c54408e
-      size: 155
+      md5: cc1d9861d325d44dd0b4f3e487bf0921
+      size: 161
   train_svd:
     cmd: recsys-train-svd
     deps:
