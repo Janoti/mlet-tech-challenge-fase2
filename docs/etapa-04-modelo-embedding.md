@@ -358,10 +358,10 @@ poetry run mlflow ui  # acessa http://localhost:5000 → Models → EmbeddingRec
 
 | Métrica | Popularidade | SVD (MF, sklearn) | **Embedding (MLP)** |
 |---|---|---|---|
-| Precision@10 | 0.0093 | 0.0096 | **0.0122** |
-| Recall@10 | 0.0188 | 0.0207 | **0.0264** |
-| NDCG@10 | 0.0146 | 0.0158 | **0.0213** |
-| MAP@10 | 0.0064 | 0.0071 | **0.0106** |
+| Precision@10 | 0.0093 | 0.0096 | **0.0120** |
+| Recall@10 | 0.0188 | 0.0207 | **0.0245** |
+| NDCG@10 | 0.0146 | 0.0158 | **0.0200** |
+| MAP@10 | 0.0064 | 0.0072 | **0.0098** |
 
 O embedding supera **os dois baselines** em todas as métricas. A progressão
 popularidade → SVD → MLP é reveladora: o SVD (fatoração linear) já melhora sobre a
@@ -442,8 +442,12 @@ dos gradientes estável ao longo das camadas, acelerando a convergência inicial
 ### Cold-start
 
 Usuários não presentes no dado de treino causariam `KeyError` no `IdEncoder`.
-O método `recommend()` captura essa exceção e retorna lista vazia — comportamento
-explícito e seguro, sem fallback silencioso para popularidade.
+O método `recommend()` captura essa exceção e retorna lista vazia. Para garantir
+que todo usuário receba recomendações, o pipeline envolve o modelo em um
+`FallbackRecommender` (`src/recsys/models/fallback.py`): quando o primário
+retorna vazio **ou lança qualquer exceção** (ex.: modelo não inicializado),
+o fallback delega ao `PopularityRecommender` e retorna os
+top-k itens globalmente mais populares.
 
 ---
 

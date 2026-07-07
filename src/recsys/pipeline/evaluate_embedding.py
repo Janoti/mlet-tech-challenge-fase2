@@ -19,6 +19,7 @@ from recsys.evaluation.metrics import (
     recall_at_k,
 )
 from recsys.models.base import Recommender
+from recsys.models.fallback import FallbackRecommender
 from recsys.pipeline.params import load_params
 from recsys.registry import (
     MODEL_NAME,
@@ -31,6 +32,7 @@ from recsys.tracking import run
 from recsys.utils.logging_utils import get_logger, log_kv, setup_logging
 
 _MODEL = Path("models/embedding.pkl")
+_BASELINE_MODEL = Path("models/baseline.pkl")
 _TEST = Path("data/interim/test.parquet")
 _METRICS = Path("metrics/metrics_embedding.json")
 _BASELINE_METRICS = Path("metrics/metrics.json")
@@ -81,7 +83,15 @@ def main() -> int:
     logger = get_logger("recsys.pipeline.evaluate_embedding")
     k = load_params()["evaluate"]["top_k"]
     with _MODEL.open("rb") as fh:
-        model = pickle.load(fh)
+        embedding = pickle.load(fh)
+    with _BASELINE_MODEL.open("rb") as fh:
+        baseline = pickle.load(fh)
+    # Avalia o sistema completo (embedding + fallback de popularidade para cold-start).
+    # As métricas resultantes refletem o comportamento em produção, não o embedding isolado.
+    # O gate de promoção compara essas métricas contra o baseline puro (metrics.json),
+    # o que é uma comparação sistema-vs-modelo — aceitável para este projeto, mas vale
+    # notar que cold-start users contribuem com recomendações do fallback, não do embedding.
+    model = FallbackRecommender(embedding, baseline)
     test = pd.read_parquet(_TEST)
     metrics = _mean_metrics(model, _relevant_by_user(test), k)
 

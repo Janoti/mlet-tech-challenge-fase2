@@ -5,7 +5,7 @@
 > (10 blocos). Documenta o problema de ML de ponta a ponta — do valor de negócio
 > ao monitoramento — e amarra cada bloco ao código já existente no repositório.
 >
-> **Legenda de maturidade:** ✅ implementado (Etapas 1–3) · 🔜 planejado (Etapa 4) ·
+> **Legenda de maturidade:** ✅ implementado (Etapas 1–4) · 🔜 planejado (bônus) ·
 > 💡 hipótese de produto (fora do escopo acadêmico).
 
 ---
@@ -53,22 +53,27 @@ explícitas (ratings); a relevância é inferida das interações observadas.
 | ✅ Etapa 3 | **Popularidade por item** (contagem de interações, ordenada) | [`features/build_features.py`](../src/recsys/features/build_features.py) |
 | ✅ Etapa 3 | **Itens vistos por usuário** (para não recomendar o já visto) | [`models/baseline.py`](../src/recsys/models/baseline.py) |
 | ✅ Etapa 3 | **Codificação de IDs** em índices contíguos (pré-requisito de embeddings) | [`preprocessing/encoder.py`](../src/recsys/preprocessing/encoder.py) |
-| 🔜 Etapa 4 | **Embeddings** de usuário e item; possíveis features de `category`, `user_gender` e sinais temporais | rede neural PyTorch |
+| ✅ Etapa 4 | **Embeddings** de usuário e item aprendidos por negative sampling | [`models/embedding.py`](../src/recsys/models/embedding.py) |
 
 ### 4. Construção dos modelos ✅ → 🔜
 
-- **Baseline (Etapa 3):** `PopularityRecommender` — recomenda os itens globalmente mais
-  populares ainda não vistos pelo usuário. Implementa a interface abstrata
+- **Baseline de popularidade (Etapa 3):** `PopularityRecommender` — recomenda os itens
+  globalmente mais populares ainda não vistos pelo usuário. Implementa a interface abstrata
   [`Recommender`](../src/recsys/models/base.py) (`fit` / `recommend`).
-- **Modelo-alvo (Etapa 4):** rede neural **MLP / embedding-based** em PyTorch, que
-  implementará a **mesma interface** `Recommender` e entrará no pipeline **sem alterar**
-  os stages `train`/`evaluate` (Open/Closed Principle).
+- **Baseline competitivo (Etapa 4):** `SvdRecommender` — matrix factorization com
+  `TruncatedSVD` (sklearn), isola o ganho da não-linearidade do MLP.
+- **Modelo principal (Etapa 4):** `EmbeddingRecommender` — rede neural MLP em PyTorch com
+  negative sampling e **early stopping por NDCG de validação**. Implementa a mesma
+  interface `Recommender` (Open/Closed Principle).
+- **Cold-start (Etapa 4):** `FallbackRecommender` — wrapper que delega ao
+  `PopularityRecommender` quando o modelo primário retorna lista vazia (usuário
+  desconhecido), garantindo que todo usuário receba recomendações.
 - **Re-treino:** `dvc repro` reexecuta apenas os stages afetados quando código, dados ou
   `params.yaml` mudam (hash de dependências). Hiperparâmetros centralizados em
   [`params.yaml`](../params.yaml).
 - **Rastreamento:** cada execução registra parâmetros, métricas e artefatos no **MLflow**
-  ([`tracking.py`](../src/recsys/tracking.py)); na Etapa 4, o melhor modelo é promovido a
-  **Production** via Model Registry.
+  ([`tracking.py`](../src/recsys/tracking.py)); o melhor modelo é promovido a
+  **Production** via Model Registry com gate de qualidade (NDCG@10).
 
 ---
 
@@ -79,7 +84,8 @@ explícitas (ratings); a relevância é inferida das interações observadas.
 - **Tipo:** ranking / recomendação top-k com feedback implícito.
 - **Entidade de predição:** um usuário (`user_id`).
 - **Saída:** lista ordenada de até `k` `item_id`s que o usuário ainda **não** interagiu
-  (`k = 10` por default, configurável em `params.yaml`).
+  (`k = 10` por default, configurável em `params.yaml`). Para usuários novos (cold-start),
+  o `FallbackRecommender` garante que a saída nunca seja vazia — retorna os top-k mais populares.
 - **Entrada em inferência:** histórico de interações do usuário + estado do modelo treinado.
 
 ### 6. Decisões / Uso das predições ✅ → 💡
@@ -126,13 +132,15 @@ Quatro métricas de ranking (≥ 4, requisito do enunciado), em
 
 ---
 
-## Resumo do estado atual (Etapa 3)
+## Resumo do estado atual (Etapa 4)
 
 | Bloco | Estado |
 |---|---|
 | Objetivo, Tarefa de predição, Avaliação offline | ✅ Definidos e implementados |
-| Fontes de dados, Features, Construção de modelos | ✅ Baseline de popularidade no pipeline DVC + MLflow |
+| Fontes de dados, Features, Construção de modelos | ✅ 3 modelos (Popularidade, SVD, Embedding MLP) no pipeline DVC + MLflow |
+| Cold-start | ✅ `FallbackRecommender` garante recomendações para usuários novos |
+| Model Registry | ✅ Gate Staging → Production por NDCG@10 |
 | Realização de predições, Decisões | ✅ Batch offline · 💡 produto hipotético |
-| Avaliação ao vivo / monitoramento | 🔜 Etapa 4 (depende do deploy) |
+| Avaliação ao vivo / monitoramento | 🔜 Bônus (depende do deploy Kubernetes) |
 
-Ver também: [docs/etapa-03-resumo.md](etapa-03-resumo.md) e [README](../README.md).
+Ver também: [docs/etapa-04-modelo-embedding.md](etapa-04-modelo-embedding.md), [docs/model_card.md](model_card.md) e [README](../README.md).

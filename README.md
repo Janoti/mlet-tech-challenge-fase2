@@ -308,7 +308,11 @@ mlet-tech-challenge-fase2/
 │   │   └── build_features.py        # Features de popularidade por item
 │   ├── models/
 │   │   ├── base.py                  # Recommender (ABC) — ponto de extensão
-│   │   └── baseline.py              # PopularityRecommender (baseline Etapa 3)
+│   │   ├── baseline.py              # PopularityRecommender (baseline Etapa 3)
+│   │   ├── svd.py                   # SvdRecommender — matrix factorization (sklearn)
+│   │   ├── embedding.py             # EmbeddingRecommender — MLP PyTorch (Etapa 4)
+│   │   ├── early_stopping.py        # EarlyStopping por NDCG de validação
+│   │   └── fallback.py              # FallbackRecommender — cold-start via popularidade
 │   ├── evaluation/
 │   │   └── metrics.py               # P@K, R@K, NDCG@K, MAP@K (funções puras)
 │   ├── pipeline/                    # Console scripts finos chamados pelo dvc.yaml
@@ -321,7 +325,7 @@ mlet-tech-challenge-fase2/
 │   └── utils/
 │       ├── logging_utils.py         # Logging estruturado (sem print)
 │       └── seed.py                  # set_global_seed centralizado
-├── tests/                           # 79 testes espelhando a estrutura de src/
+├── tests/                           # 109 testes espelhando a estrutura de src/
 │   ├── config/ · data/ · preprocessing/ · features/
 │   ├── models/ · evaluation/ · pipeline/ · utils/
 │   └── test_tracking.py             # inclui smoke test do pipeline em dados reduzidos
@@ -498,7 +502,7 @@ poetry run pytest tests/data/test_generator.py -v          # arquivo específico
 poetry run pytest tests/data/test_generator.py::TestReproducibility -v
 ```
 
-Suítes de teste — **79 testes, 81% de cobertura** (`pytest --cov=recsys`):
+Suítes de teste — **109 testes** (`pytest --cov=recsys`):
 
 | Arquivo | Cobre |
 |---|---|
@@ -510,11 +514,16 @@ Suítes de teste — **79 testes, 81% de cobertura** (`pytest --cov=recsys`):
 | `tests/preprocessing/test_splitter.py` | `temporal_split`: corte temporal sem vazamento, validação de `test_size` |
 | `tests/features/test_build_features.py` | Features de popularidade: contagem e ordenação determinística |
 | `tests/models/test_baseline.py` | `PopularityRecommender`: ranking, exclusão de itens vistos, top-k |
+| `tests/models/test_early_stopping.py` | `EarlyStopping`: paciência, min_delta, rastreamento do melhor valor |
+| `tests/models/test_embedding.py` | `EmbeddingRecommender`: recomendações, cold-start, reprodutibilidade, early stopping |
+| `tests/models/test_svd.py` | `SvdRecommender`: recomendações, cold-start, reprodutibilidade, catálogo |
+| `tests/models/test_fallback.py` | `FallbackRecommender`: fallback por lista vazia, por exceção, delegação de fit |
 | `tests/evaluation/test_metrics.py` | P@K, R@K, NDCG@K, MAP@K com valores conferidos à mão |
 | `tests/pipeline/test_params.py` | Leitura de `params.yaml` |
 | `tests/pipeline/test_smoke_pipeline.py` | Smoke test: roda o pipeline em dados reduzidos ponta a ponta |
+| `tests/test_registry.py` | Gate de promoção Staging → Production: candidato melhor, pior, igual, sem baseline |
 | `tests/test_tracking.py` | Camada de tracking MLflow (URI, cross-link DVC best-effort) |
-| `tests/utils/test_logging_utils.py` · `test_seed.py` | Logging idempotente e seed global |
+| `tests/utils/test_logging_utils.py` · `test_seed.py` | Logging idempotente e seed global (Python, NumPy, PyTorch) |
 
 > A cobertura caiu de 99% (Etapa 2) para 81% porque a Etapa 3 adicionou os stages do
 > pipeline (`pipeline/*.py`), cujas funções `main()` são exercitadas de ponta a ponta pelo

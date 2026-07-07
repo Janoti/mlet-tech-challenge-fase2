@@ -48,19 +48,26 @@ pipeline para análises de fairness e features futuras, mas **não** entram no t
 
 ## 4. Performance
 
-Avaliação em split de teste (holdout por interações), top-k = 10, contra dois baselines.
-Métricas geradas pelo pipeline DVC ([`metrics/`](../metrics)).
+Avaliação em split de teste **temporal** (holdout das 20% interações mais recentes),
+top-k = 10, contra dois baselines. Métricas geradas pelo pipeline DVC ([`metrics/`](../metrics)).
 
 | Métrica | Popularidade | SVD (MF, sklearn) | **Embedding (MLP)** |
 |---|---|---|---|
-| Precision@10 | 0.0093 | 0.0096 | **0.0122** |
-| Recall@10 | 0.0188 | 0.0207 | **0.0264** |
-| NDCG@10 | 0.0146 | 0.0158 | **0.0213** |
-| MAP@10 | 0.0064 | 0.0071 | **0.0106** |
+| Precision@10 | 0.0093 | 0.0096 | **0.0120** |
+| Recall@10 | 0.0188 | 0.0207 | **0.0245** |
+| NDCG@10 | 0.0146 | 0.0158 | **0.0200** |
+| MAP@10 | 0.0064 | 0.0072 | **0.0098** |
 
 O embedding supera **ambos** os baselines nas quatro métricas. O contraste com o SVD
 (fatoração linear) isola o ganho vindo da **não-linearidade** do MLP: as duas abordagens
 aprendem fatores latentes, mas só o MLP modela interações não-lineares user×item.
+
+**Nota metodológica — embedding isolado vs sistema com fallback:** por ser um split
+temporal, todos os usuários do conjunto de teste são conhecidos pelo modelo (estavam no
+treino com interações anteriores). O `FallbackRecommender` não contribui para nenhum
+resultado da tabela acima — as métricas refletem **exclusivamente o embedding**. O fallback
+só entra para usuários completamente novos (ausentes do treino), que o teste offline por
+design não contempla.
 
 **Gate de promoção:** a versão só é promovida de `Staging` a `Production` se superar o
 baseline na métrica primária (NDCG@10) — evita colocar em produção um modelo pior.
@@ -69,8 +76,9 @@ baseline na métrica primária (NDCG@10) — evita colocar em produção um mode
 
 ## 5. Limitações
 
-- **Cold-start:** usuários ou itens ausentes no treino não têm embedding; `recommend`
-  retorna lista vazia (sem fallback silencioso para popularidade).
+- **Cold-start:** usuários ausentes no treino não têm embedding; o pipeline usa
+  `FallbackRecommender` que delega automaticamente ao `PopularityRecommender`,
+  garantindo que todo usuário receba recomendações (top-k globalmente populares).
 - **Valores absolutos baixos:** o dado sintético com afinidade por categoria é
   deliberadamente difícil; em dados reais (histórico mais longo, sinais de compra) as
   métricas absolutas tendem a ser bem maiores.
