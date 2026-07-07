@@ -30,6 +30,16 @@ class TestSetGlobalSeed:
         second = np.random.rand(10)
         np.testing.assert_array_equal(first, second)
 
+    def test_same_seed_produces_same_torch_sequence(self) -> None:
+        # A rede neural da Etapa 4 depende do RNG do torch (init dos embeddings
+        # e shuffle do DataLoader). Sem isso, `dvc repro` não é determinístico.
+        torch = pytest.importorskip("torch")
+        set_global_seed(42)
+        first = torch.rand(10)
+        set_global_seed(42)
+        second = torch.rand(10)
+        assert torch.equal(first, second)
+
     def test_pythonhashseed_is_set(self) -> None:
         set_global_seed(99)
         assert os.environ["PYTHONHASHSEED"] == "99"
