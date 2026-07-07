@@ -92,6 +92,13 @@ class TestReproducibility:
         df_second = generator.generate(small_config)
         pd.testing.assert_frame_equal(df_first, df_second)
 
+    def test_timestamps_anchored_to_fixed_reference_not_wall_clock(
+        self, small_config: EnrichedGenerationConfig, small_df: pd.DataFrame
+    ) -> None:
+        # O teto dos timestamps é a reference_date fixa, não o relógio.
+        ceiling = pd.Timestamp(small_config.reference_date).tz_localize(None)
+        assert small_df["timestamp"].max() <= ceiling
+
     def test_different_seed_yields_different_df(self) -> None:
         cfg_a = EnrichedGenerationConfig(num_users=50, num_items=20, num_interactions=10_000, seed=1)
         cfg_b = EnrichedGenerationConfig(num_users=50, num_items=20, num_interactions=10_000, seed=2)

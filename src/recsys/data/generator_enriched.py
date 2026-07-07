@@ -29,6 +29,7 @@ from typing import Final
 import numpy as np
 import pandas as pd
 
+from recsys.data.generator import _DEFAULT_REFERENCE_DATE
 from recsys.utils.logging_utils import get_logger
 
 _logger = get_logger(__name__)
@@ -65,6 +66,8 @@ class EnrichedGenerationConfig:
         user_skew: Expoente Zipf para atividade de usuários (> 1.0).
         n_pref_categories: Categorias preferidas por usuário (1 a len(CATEGORIES)).
         affinity_strength: Peso extra dos itens nas categorias preferidas (>= 1.0).
+        reference_date: Fim da janela temporal (âncora fixa, UTC). Determinística
+            por padrão para não acoplar o dataset ao relógio.
     """
 
     num_users: int
@@ -76,6 +79,7 @@ class EnrichedGenerationConfig:
     user_skew: float = 1.1
     n_pref_categories: int = 2
     affinity_strength: float = 3.0
+    reference_date: datetime = _DEFAULT_REFERENCE_DATE
 
     def __post_init__(self) -> None:
         """Valida parâmetros no construtor — falha cedo."""
@@ -202,7 +206,7 @@ class EnrichedDatasetGenerator:
         rng: np.random.Generator,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Timestamps com concentração maior nos fins de semana."""
-        end_utc = datetime.now(tz=UTC)
+        end_utc = config.reference_date.astimezone(UTC)
         start = (end_utc - timedelta(days=config.time_window_days)).replace(tzinfo=None)
         day_weights = self._compute_day_weights(start, config.time_window_days)
         day_offsets = rng.choice(
