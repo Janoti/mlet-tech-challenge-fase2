@@ -11,6 +11,7 @@ import pandas as pd
 
 from recsys.models.embedding import EmbeddingRecommender
 from recsys.pipeline.params import load_params
+from recsys.registry import MODEL_NAME, register_staging
 from recsys.tracking import data_version, run
 from recsys.utils.logging_utils import get_logger, log_kv, setup_logging
 
@@ -34,17 +35,13 @@ def main() -> int:
         if version:
             mlflow.set_tag("train_data_version", version)
 
-        model = EmbeddingRecommender(
-            emb_dim=emb_params["emb_dim"],
-            hidden_dim=emb_params["hidden_dim"],
-            lr=emb_params["lr"],
-            epochs=emb_params["epochs"],
-            batch_size=emb_params["batch_size"],
-            neg_samples=emb_params["neg_samples"],
-        ).fit(train_df)
+        model = EmbeddingRecommender(**emb_params).fit(train_df)
 
         for epoch, loss in enumerate(model.epoch_losses):
             mlflow.log_metric("train_loss", loss, step=epoch)
+        for epoch, ndcg in enumerate(model.val_ndcgs):
+            mlflow.log_metric("val_ndcg", ndcg, step=epoch)
+        mlflow.log_metric("epochs_trained", len(model.epoch_losses))
         mlflow.log_metric("train_n_users", model.n_users)
         mlflow.log_metric("train_n_items", model.n_items)
 
@@ -55,20 +52,13 @@ def main() -> int:
         mlflow.log_artifact(str(_MODEL), artifact_path="model")
         model_uri = f"runs:/{mlflow.active_run().info.run_id}/model/embedding.pkl"
 
-        registered = mlflow.register_model(model_uri, "EmbeddingRecommender")
-
-        client = mlflow.MlflowClient()
-        client.transition_model_version_stage(
-            name="EmbeddingRecommender",
-            version=registered.version,
-            stage="Production",
-        )
+        version = register_staging(model_uri, MODEL_NAME)
         log_kv(
             logger,
             "model_registered",
-            name="EmbeddingRecommender",
-            version=registered.version,
-            stage="Production",
+            name=MODEL_NAME,
+            version=version,
+            stage="Staging",
         )
 
     log_kv(logger, "train_embedding_done", model_path=str(_MODEL))

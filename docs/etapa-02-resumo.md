@@ -21,7 +21,7 @@
 ### Por que Poetry?
 
 Duas ferramentas dominam o ecossistema Python moderno para gerenciamento de pacotes: **Poetry** e **uv**. O projeto usa Poetry porque:
-- A FIAP indica Poetry explicitamente nas aulas (Aula 02 — Gerenciamento de Pacotes).
+- É o padrão de mercado consolidado para gerenciamento de dependências e empacotamento.
 - A equipe já usa Poetry desde a Fase 1 do Tech Challenge.
 - `pyproject.toml` centraliza metadados, deps, linter e pytest em arquivo único.
 
@@ -177,13 +177,13 @@ O notebook [notebooks/01_eda.ipynb](../notebooks/01_eda.ipynb) analisa o dataset
 
 ---
 
-## Alinhamento com as aulas
+## Decisões de engenharia e onde estão no código
 
-| Aula | Conceito-chave | Onde está no código |
+| Tema | Conceito-chave | Onde está no código |
 |---|---|---|
-| Aula 01 — Reprodutibilidade | Código + Dados + Ambiente = Resultado | `set_global_seed` + `default_rng(seed)` + `.env` + `validate_env.py` |
-| Aula 02 — Poetry | `pyproject.toml` como única fonte da verdade; lockfile commitado | `pyproject.toml` + `poetry.lock` |
-| Aula 03 — Controle de versões | Lockfile evita dependency hell; deps prod/dev separadas | `poetry.lock` + grupos `[dev]` isolados |
+| Reprodutibilidade | Código + Dados + Ambiente = Resultado | `set_global_seed` + `default_rng(seed)` + `.env` + `validate_env.py` |
+| Gerenciamento de pacotes | `pyproject.toml` como única fonte da verdade; lockfile commitado | `pyproject.toml` + `poetry.lock` |
+| Controle de versões de deps | Lockfile evita dependency hell; deps prod/dev separadas | `poetry.lock` + grupos `[dev]` isolados |
 
 ---
 

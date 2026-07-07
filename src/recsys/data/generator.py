@@ -39,7 +39,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import numpy as np
 import pandas as pd
@@ -49,7 +49,6 @@ from recsys.data.schema import (
     COLUMN_ITEM_ID,
     COLUMN_TIMESTAMP,
     COLUMN_USER_ID,
-    INTERACTION_COLUMNS_BASIC,
     InteractionType,
 )
 from recsys.utils.logging_utils import get_logger
@@ -58,6 +57,11 @@ _logger = get_logger(__name__)
 
 # Funil de e-commerce: view (85%) → add_to_cart (12%) → purchase (3%).
 _INTERACTION_TYPE_PROBS: tuple[float, float, float] = (0.85, 0.12, 0.03)
+
+# Âncora temporal fixa (UTC). Usar uma data determinística — e não
+# ``datetime.now()`` — garante que a mesma seed produza sempre o mesmo dataset,
+# requisito de reprodutibilidade (Git + DVC).
+_DEFAULT_REFERENCE_DATE: datetime = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 @dataclass(frozen=True)
@@ -74,6 +78,8 @@ class GenerationConfig:
         num_interactions: Total de interações a gerar (>= 10_000 por requisito).
         seed: Semente para reprodutibilidade.
         time_window_days: Janela temporal em que as interações são distribuídas.
+        reference_date: Fim da janela temporal (âncora fixa, UTC). Determinística
+            por padrão para não acoplar o dataset ao relógio.
     """
 
     num_users: int
@@ -81,6 +87,7 @@ class GenerationConfig:
     num_interactions: int
     seed: int = 42
     time_window_days: int = 90
+    reference_date: datetime = _DEFAULT_REFERENCE_DATE
 
     def __post_init__(self) -> None:
         """Validação no construtor — falha cedo, antes de gerar nada."""
@@ -239,7 +246,9 @@ class DatasetGenerator:
 
         user_ids, item_ids = self._strategy.sample_pairs(config, rng)
         interaction_types = self._sample_interaction_types(config.num_interactions, rng)
-        timestamps = self._sample_timestamps(config.num_interactions, config.time_window_days, rng)
+        timestamps = self._sample_timestamps(
+            config.num_interactions, config.time_window_days, config.reference_date, rng
+        )
 
         df = pd.DataFrame(
             {
@@ -260,12 +269,14 @@ class DatasetGenerator:
         return rng.choice(choices, size=n, p=list(_INTERACTION_TYPE_PROBS))
 
     @staticmethod
-    def _sample_timestamps(n: int, window_days: int, rng: np.random.Generator) -> np.ndarray:
-        """Sorteia timestamps uniformes na janela [now - window_days, now]."""
+    def _sample_timestamps(
+        n: int, window_days: int, reference_date: datetime, rng: np.random.Generator
+    ) -> np.ndarray:
+        """Sorteia timestamps uniformes na janela [reference - window_days, reference]."""
         # UTC explícito para evitar bugs com TZ local. Convertemos para naive
         # porque np.datetime64[s] não suporta tz-aware — todos os timestamps
         # no parquet são UTC por convenção.
-        end_utc = datetime.now(tz=timezone.utc)
+        end_utc = reference_date.astimezone(UTC)
         start_naive = (end_utc - timedelta(days=window_days)).replace(tzinfo=None)
         total_seconds = window_days * 24 * 60 * 60
         offsets = rng.integers(0, total_seconds, size=n)

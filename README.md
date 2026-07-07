@@ -110,11 +110,12 @@ classDiagram
 - [x] MLflow tracking (params, métricas, artefatos) com servidor SQLite (Etapa 3)
 - [x] Pipeline reprodutível via `dvc repro` + remote DVC local (Etapa 3)
 - [x] CI extra: pipeline em miniatura no PR + scan Trivy da imagem (Etapa 3)
-- [x] EmbeddingRecommender (PyTorch MLP) + stages `train_embedding` / `evaluate_embedding` no DVC (Etapa 4)
+- [x] EmbeddingRecommender (PyTorch MLP) com **early stopping por NDCG de validação** + stages no DVC (Etapa 4)
 - [x] Sinal de personalização via afinidade usuário→categoria (`affinity_strength=3.0`) (Etapa 4)
-- [x] Documentação técnica `docs/etapa-04-modelo-embedding.md` (Etapa 4)
-- [x] MLflow Model Registry com promoção a Production (`EmbeddingRecommender` v1 → Production) (Etapa 4)
-- [ ] Model Card + vídeo STAR de 5 minutos (Etapa 4 — pendente)
+- [x] Baseline **SVD (scikit-learn)** + comparação nas 4 métricas: popularidade < SVD < embedding (Etapa 4)
+- [x] Documentação técnica `docs/etapa-04-modelo-embedding.md` + **Model Card** (`docs/model_card.md`) (Etapa 4)
+- [x] MLflow Model Registry com **gate de qualidade Staging → Production** (Etapa 4)
+- [ ] Vídeo STAR de 5 minutos (Etapa 4 — pendente)
 - [ ] Deploy bônus em nuvem (Kubernetes) — container acessível via URL pública
 
 ## Quick Start
@@ -347,7 +348,7 @@ mlet-tech-challenge-fase2/
 | **1** | Clean Code e Estrutura | Estrutura, design patterns, linting, CI, gerador de dataset | ✅ Concluída |
 | **2** | Ambiente e Dependências | `poetry.lock`, `Pydantic Settings`, `.env`, `validate_env.py` | ✅ Concluída |
 | **3** | Containerização e Versionamento | `Dockerfile` multi-stage, `docker-compose`, `dvc init`, `dvc.yaml` (5 stages), MLflow tracking | ✅ Concluída |
-| **4** | Rede Neural, Registry e Entrega | MLP PyTorch, baselines sklearn (≥ 4 métricas), Model Registry → Production, Model Card, vídeo STAR | ⏳ |
+| **4** | Rede Neural, Registry e Entrega | MLP PyTorch (early stopping), baselines sklearn (≥ 4 métricas), Model Registry Staging → Production com gate, Model Card | ✅ Concluída (falta só o vídeo STAR) |
 | **Bônus** | Deploy em nuvem | Kubernetes — container acessível via URL pública | ⏳ |
 
 Detalhes em [docs/etapa-01-resumo.md](docs/etapa-01-resumo.md), [docs/etapa-02-resumo.md](docs/etapa-02-resumo.md) e [docs/etapa-03-resumo.md](docs/etapa-03-resumo.md).

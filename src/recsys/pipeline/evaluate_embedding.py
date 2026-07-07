@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import pickle
 import sys
 from pathlib import Path
@@ -19,12 +20,20 @@ from recsys.evaluation.metrics import (
 )
 from recsys.models.base import Recommender
 from recsys.pipeline.params import load_params
+from recsys.registry import (
+    MODEL_NAME,
+    PRIMARY_METRIC,
+    latest_staging_version,
+    promote_to_production,
+    should_promote,
+)
 from recsys.tracking import run
 from recsys.utils.logging_utils import get_logger, log_kv, setup_logging
 
 _MODEL = Path("models/embedding.pkl")
 _TEST = Path("data/interim/test.parquet")
 _METRICS = Path("metrics/metrics_embedding.json")
+_BASELINE_METRICS = Path("metrics/metrics.json")
 
 
 def _relevant_by_user(test: pd.DataFrame) -> dict[int, set[int]]:
@@ -45,6 +54,27 @@ def _mean_metrics(model: Recommender, relevant: dict[int, set[int]], k: int) -> 
     return {f"{m}_at_k": v / n for m, v in acc.items()}
 
 
+def _load_baseline() -> dict[str, float]:
+    """Métricas do baseline (metrics.json), ou vazio se ainda não existir."""
+    if not _BASELINE_METRICS.exists():
+        return {}
+    return json.loads(_BASELINE_METRICS.read_text(encoding="utf-8"))
+
+
+def _maybe_promote(metrics: dict[str, float], logger: logging.Logger) -> None:
+    """Promove a versão em Staging a Production se superar o baseline."""
+    baseline = _load_baseline()
+    if not should_promote(metrics, baseline, PRIMARY_METRIC):
+        log_kv(logger, "promotion_skipped", metric=PRIMARY_METRIC, stage="Staging")
+        return
+    version = latest_staging_version(MODEL_NAME)
+    if version is None:
+        log_kv(logger, "promotion_skipped", reason="sem_versao_em_staging")
+        return
+    promote_to_production(MODEL_NAME, version)
+    log_kv(logger, "model_promoted", name=MODEL_NAME, version=version, stage="Production")
+
+
 def main() -> int:
     """Avalia o embedding model no teste, grava metrics_embedding.json e loga no MLflow."""
     setup_logging()
@@ -58,6 +88,7 @@ def main() -> int:
     with run(experiment="recsys-ecommerce", run_name="embedding-eval"):
         mlflow.log_param("top_k", k)
         mlflow.log_metrics(metrics)
+        _maybe_promote(metrics, logger)
 
     _METRICS.parent.mkdir(parents=True, exist_ok=True)
     _METRICS.write_text(json.dumps(metrics, indent=2), encoding="utf-8")

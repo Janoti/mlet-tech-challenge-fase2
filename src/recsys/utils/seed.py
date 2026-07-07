@@ -26,9 +26,9 @@ def set_global_seed(seed: int) -> None:
         - `PYTHONHASHSEED` (para reprodutibilidade de estruturas baseadas em
           hash, como `set` e `dict` em alguns cenários)
 
-    A seed do PyTorch será adicionada na Etapa 4, quando o framework for
-    introduzido — manter este módulo enxuto agora evita uma dependência
-    pesada (torch) na Etapa 1.
+    A seed do PyTorch (grupo opcional ``dl``) é aplicada quando o framework
+    está instalado — o import é lazy para não acoplar este módulo ao torch
+    em instalações que não usam a rede neural.
 
     Args:
         seed: Valor inteiro não-negativo a ser usado como seed global.
@@ -42,3 +42,13 @@ def set_global_seed(seed: int) -> None:
     os.environ["PYTHONHASHSEED"] = str(seed)
     random.seed(seed)
     np.random.seed(seed)
+    _seed_torch(seed)
+
+
+def _seed_torch(seed: int) -> None:
+    """Fixa a seed do PyTorch, se instalado (no-op em ambientes sem torch)."""
+    try:
+        import torch
+    except ImportError:
+        return
+    torch.manual_seed(seed)

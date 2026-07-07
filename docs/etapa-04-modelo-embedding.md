@@ -25,7 +25,7 @@ itens relevantes para cada usuário especificamente.
 |---|---|---|
 | Baseline de popularidade | Recomenda os itens globalmente mais clicados | Não é personalizado; ignora preferências individuais |
 | One-hot encoding + NN | Input binário de 2500 dims (2000 users + 500 items) | Matematicamente equivalente ao embedding, porém 20× mais lento e memória |
-| Matrix Factorization (SVD/NMF) | Decompõe a matriz user-item em fatores latentes | Só relações lineares; não adiciona camadas não-lineares facilmente |
+| Matrix Factorization (SVD/NMF) | Decompõe a matriz user-item em fatores latentes | Só relações lineares — descartada como modelo *principal*, mas usada como **baseline** (§8) para isolar o ganho da não-linearidade |
 | **MLP com Embeddings (escolhido)** | Lookup de vetores densos + MLP com ReLU | Ponto de equilíbrio: personalizável, não-linear, treina em minutos no CPU |
 | Two-Tower / Transformers | Redes separadas por user/item; atenção sobre sequência | Requerem muito mais dados e infraestrutura; fora do escopo do dataset sintético |
 
@@ -166,12 +166,15 @@ durante o treino e explicitamente na inferência.
 
 ```yaml
 embedding:
-  emb_dim: 64        # dimensão dos vetores de usuário e item
-  hidden_dim: 128    # neurônios na camada oculta
+  emb_dim: 96        # dimensão dos vetores de usuário e item
+  hidden_dim: 192    # neurônios na camada oculta
   lr: 0.001          # taxa de aprendizado do Adam
-  epochs: 30         # épocas de treino
+  epochs: 50         # teto de épocas (early stopping pode parar antes)
   batch_size: 1024   # tamanho do mini-batch
   neg_samples: 8     # amostras negativas por interação positiva
+  seed: 42           # reprodutibilidade (Python + NumPy + PyTorch)
+  patience: 10       # épocas sem melhora no NDCG de validação antes de parar
+  val_frac: 0.2      # fração das interações reservada para validação de ranking
 ```
 
 ---
@@ -227,13 +230,22 @@ A cada passo:
 3. O gradiente flui de volta pelo MLP **e pelos embeddings** — os vetores de
    usuários e itens são ajustados a cada batch
 
-Curva de convergência típica (30 épocas):
+### Early stopping por NDCG de validação
+
+Uma fração (`val_frac`) das interações é reservada para validação. **A cada época,
+mede-se o NDCG@k de validação** e o treino para quando ele deixa de melhorar por
+`patience` épocas — restaurando os pesos da melhor época.
+
+Detalhe importante: o critério de parada é o **NDCG de ranking**, não a loss BCE.
+A loss BCE (sobre negativos aleatórios) é um *proxy ruim* para ranking top-k — seu
+mínimo ocorre bem antes do pico de NDCG, então parar pela BCE degradaria o ranking.
+Monitorar diretamente o objetivo (NDCG) alinha o early stopping com o que importa.
 
 ```
-Época  1: loss ≈ 0.58  (modelo aleatório)
-Época  5: loss ≈ 0.45
-Época 15: loss ≈ 0.38
-Época 30: loss ≈ 0.33  (convergindo)
+Época  1:  val_ndcg ≈ 0.008   (modelo quase aleatório)
+Época 15:  val_ndcg ≈ 0.018
+Época 34:  val_ndcg ≈ 0.021   (melhor época → pesos restaurados)
+Época 44:  early stopping (10 épocas sem melhora)
 ```
 
 ---
@@ -267,23 +279,29 @@ por busca aproximada de vizinhos (FAISS, ScaNN), mas para 500 itens é eficiente
 
 ## 7. Pipeline DVC
 
-Os dois novos stages se encaixam no pipeline existente sem modificar os stages anteriores:
+Os novos stages se encaixam no pipeline existente sem modificar os stages anteriores
+(OCP também no nível de pipeline):
 
 ```
 params.yaml
     │
     ▼
-generate ──► preprocess ──► feature_eng ──► train ──► evaluate
-                │                                       (baseline.pkl → metrics.json)
+generate ──► preprocess ──► feature_eng ──► train ──────► evaluate
+                │                            (popularidade → metrics.json)
                 │
-                └──► train_embedding ──► evaluate_embedding
-                      (embedding.pkl)     (metrics_embedding.json)
+                ├──► train_svd ──────────► evaluate_svd
+                │     (svd.pkl)             (metrics_svd.json)
+                │
+                └──► train_embedding ────► evaluate_embedding
+                      (embedding.pkl)       (metrics_embedding.json + promoção)
 ```
 
 | Stage | Comando | Entrada | Saída |
 |---|---|---|---|
-| `train_embedding` | `recsys-train-embedding` | `train.parquet` + params | `models/embedding.pkl` |
-| `evaluate_embedding` | `recsys-evaluate-embedding` | `embedding.pkl` + `test.parquet` | `metrics/metrics_embedding.json` |
+| `train_svd` | `recsys-train-svd` | `train.parquet` + params | `models/svd.pkl` |
+| `evaluate_svd` | `recsys-evaluate-svd` | `svd.pkl` + `test.parquet` | `metrics/metrics_svd.json` |
+| `train_embedding` | `recsys-train-embedding` | `train.parquet` + params | `models/embedding.pkl` (→ Staging) |
+| `evaluate_embedding` | `recsys-evaluate-embedding` | `embedding.pkl` + `test.parquet` | `metrics/metrics_embedding.json` (→ gate Production) |
 
 O DVC rastreia mudanças em `params.yaml` (seção `embedding`) e em
 `src/recsys/models/embedding.py` — qualquer alteração invalida os dois stages e
@@ -292,43 +310,39 @@ reutilizados do cache.
 
 Cada execução de treino é registrada no MLflow com:
 - Todos os parâmetros do `params.yaml` (generate + embedding)
-- Loss por época (`train_loss` step-by-step)
+- `train_loss` e `val_ndcg` por época (step-by-step) + `epochs_trained` (evidência do early stopping)
 - Métricas de capacidade (`train_n_users`, `train_n_items`)
 - Tag com versão dos dados DVC
 
-### MLflow Model Registry
+### MLflow Model Registry — Staging → Production com gate de qualidade
 
-Ao final do stage `train_embedding`, o modelo treinado é promovido automaticamente
-ao **MLflow Model Registry** sem nenhuma intervenção manual:
+O fluxo é dividido em dois estágios do pipeline, com um **gate de qualidade** no meio —
+em vez de promover automaticamente qualquer modelo:
 
 ```python
-# 1. Registra o artefato no run ativo
-mlflow.log_artifact("models/embedding.pkl", artifact_path="model")
+# train_embedding: registra a nova versão e a coloca em Staging
+version = register_staging(model_uri, "EmbeddingRecommender")
 
-# 2. Cria (ou incrementa) a entrada no Registry
-registered = mlflow.register_model(model_uri, "EmbeddingRecommender")
-
-# 3. Promove para Production
-client.transition_model_version_stage(
-    name="EmbeddingRecommender",
-    version=registered.version,
-    stage="Production",
-)
+# evaluate_embedding: só promove a Production se superar o baseline
+if should_promote(metrics_embedding, metrics_baseline, "ndcg_at_k"):
+    promote_to_production("EmbeddingRecommender", latest_staging_version(...))
 ```
 
-**Fluxo completo a cada `dvc repro train_embedding`:**
+**Fluxo completo por `dvc repro`:**
 
 ```
-treino → pickle.dump → log_artifact → register_model → transition → Production
-                                                ↓
-                                  EmbeddingRecommender v1 (Production)
-                                  EmbeddingRecommender v2 (Production)  ← próxima run
-                                  ...
+train_embedding    → register → Staging
+evaluate_embedding → NDCG supera o baseline?
+                        ├─ sim → promove a Production (arquiva a anterior)
+                        └─ não → permanece em Staging (não vai a produção)
 ```
 
-Cada re-execução cria uma nova versão no Registry — o histórico de versões fica
-preservado para auditoria e rollback. A versão mais recente promovida a
-`Production` é o modelo "oficial" em uso.
+Isso evita o anti-padrão de promover automaticamente um modelo pior. Cada re-execução
+cria uma nova versão (histórico preservado para auditoria e rollback); a promoção a
+`Production` é condicional à melhora na métrica primária (NDCG@10).
+
+> Nota técnica: a API de *stages* (`Staging`/`Production`) está deprecada no MLflow 3.x
+> (migra para *aliases*), mas é a suportada no MLflow 2.x usado aqui.
 
 Para inspecionar via UI:
 
@@ -342,17 +356,19 @@ poetry run mlflow ui  # acessa http://localhost:5000 → Models → EmbeddingRec
 
 ### Baseline vs. Embedding (k=10)
 
-| Métrica | Baseline (popularidade) | Embedding (MLP) | Ganho |
+| Métrica | Popularidade | SVD (MF, sklearn) | **Embedding (MLP)** |
 |---|---|---|---|
-| Precision@10 | 0.0097 | **0.0123** | +27% |
-| Recall@10 | 0.0210 | **0.0255** | +21% |
-| NDCG@10 | 0.0154 | **0.0215** | +40% |
-| MAP@10 | 0.0066 | **0.0104** | +58% |
+| Precision@10 | 0.0093 | 0.0096 | **0.0122** |
+| Recall@10 | 0.0188 | 0.0207 | **0.0264** |
+| NDCG@10 | 0.0146 | 0.0158 | **0.0213** |
+| MAP@10 | 0.0064 | 0.0071 | **0.0106** |
 
-O embedding supera o baseline em **todas as métricas**, com ganho mais
-expressivo no MAP@10 (+58%) — que penaliza mais fortemente recomendações
-relevantes em posições baixas. Isso indica que o embedding não só acerta mais
-itens, mas os coloca em posições mais altas no ranking.
+O embedding supera **os dois baselines** em todas as métricas. A progressão
+popularidade → SVD → MLP é reveladora: o SVD (fatoração linear) já melhora sobre a
+popularidade por ser personalizado; o MLP melhora sobre o SVD ao adicionar
+**não-linearidade** — ambos aprendem fatores latentes, mas só o MLP modela interações
+não-lineares user×item. O ganho é mais forte no MAP@10, que penaliza acertos em
+posições baixas: o embedding não só acerta mais itens, mas os rankeia mais alto.
 
 ### Por que os valores absolutos são baixos
 
@@ -372,15 +388,21 @@ Em dados reais, com histórico mais longo por usuário, sinais de compra
 (mais fortes que view) e mais interações por item, as métricas absolutas
 ficam tipicamente na faixa 0.05–0.20 para Precision@10.
 
-### Efeito dos hiperparâmetros
+### Efeito dos hiperparâmetros (seleção por validação)
 
-| Configuração | Precision@10 | NDCG@10 | MAP@10 |
-|---|---|---|---|
-| v1: `emb_dim=32, epochs=10, neg=4` | 0.0103 | 0.0165 | 0.0075 |
-| v2: `emb_dim=64, epochs=30, neg=8` | **0.0123** | **0.0215** | **0.0104** |
+A configuração final foi escolhida pelo **NDCG de validação** (não pelo teste, para
+evitar overfitting ao conjunto de avaliação):
 
-Dobrar a capacidade do embedding e triplicar as épocas de treino resultou em
-+27% de Precision@10 e +39% de NDCG@10.
+| Configuração | Épocas até parar | NDCG@10 (validação) |
+|---|---|---|
+| `emb_dim=64, ep=30, patience=5, val_frac=0.1` | ~6 | 0.014 |
+| `emb_dim=64, ep=50, patience=10, val_frac=0.2` | ~11 | 0.016 |
+| **`emb_dim=96, ep=50, patience=10, val_frac=0.2`** | **~34** | **0.021** |
+
+Aumentar a capacidade (embeddings maiores) e dar mais folga ao treino — com uma
+validação menos ruidosa (`val_frac=0.2`) e `patience` maior — permitiu ao early
+stopping parar perto do ótimo de ranking, elevando o NDCG de validação e, por
+consequência, o de teste.
 
 ---
 

@@ -107,8 +107,7 @@ navegação*):
 
 - **Etapa 2** — `poetry install` limpo, lock file commitado, `.env` real,
   Pydantic Settings, script `validate_env.py`.
-- **Etapa 3** — Dockerfile multi-stage (base para **K8s** — vide aulas
-  gravadas), `docker-compose` com MLflow server, `dvc init` + `dvc.yaml`
-  com ≥ 3 stages.
+- **Etapa 3** — Dockerfile multi-stage (base para **K8s** no deploy bônus),
+  `docker-compose` com MLflow server, `dvc init` + `dvc.yaml` com ≥ 3 stages.
 - **Etapa 4** — MLP/embedding PyTorch, Model Registry (Staging → Production),
   Model Card, vídeo STAR (5 min), deploy em nuvem (bônus, possivelmente K8s).

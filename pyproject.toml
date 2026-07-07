@@ -81,6 +81,8 @@ recsys-preprocess = "recsys.pipeline.preprocess:main"
 recsys-features = "recsys.pipeline.feature_eng:main"
 recsys-train = "recsys.pipeline.train:main"
 recsys-evaluate = "recsys.pipeline.evaluate:main"
+recsys-train-svd = "recsys.pipeline.train_svd:main"
+recsys-evaluate-svd = "recsys.pipeline.evaluate_svd:main"
 recsys-train-embedding = "recsys.pipeline.train_embedding:main"
 recsys-evaluate-embedding = "recsys.pipeline.evaluate_embedding:main"
 
