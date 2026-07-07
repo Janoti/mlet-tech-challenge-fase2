@@ -67,3 +67,18 @@ def test_respects_k_from_fallback() -> None:
         fallback=_StubRecommender([1, 2, 3, 4, 5]),
     )
     assert len(model.recommend(user_id=999, k=2)) == 2
+
+
+def test_falls_back_when_primary_raises_exception() -> None:
+    class _BrokenRecommender(Recommender):
+        def fit(self, train: pd.DataFrame) -> "_BrokenRecommender":
+            return self
+
+        def recommend(self, user_id: int, k: int) -> list[int]:
+            raise RuntimeError("modelo não inicializado")
+
+    model = FallbackRecommender(
+        primary=_BrokenRecommender(),
+        fallback=_StubRecommender([9, 8, 7]),
+    )
+    assert model.recommend(user_id=1, k=3) == [9, 8, 7]

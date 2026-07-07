@@ -39,7 +39,10 @@ class FallbackRecommender(Recommender):
         Returns:
             Lista de até ``k`` item_ids.
         """
-        recs = self._primary.recommend(user_id, k)
+        try:
+            recs = self._primary.recommend(user_id, k)
+        except Exception:
+            recs = []
         if not recs:
             return self._fallback.recommend(user_id, k)
         return recs
