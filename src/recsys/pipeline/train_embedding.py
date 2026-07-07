@@ -11,6 +11,7 @@ import pandas as pd
 
 from recsys.models.embedding import EmbeddingRecommender
 from recsys.pipeline.params import load_params
+from recsys.registry import MODEL_NAME, register_staging
 from recsys.tracking import data_version, run
 from recsys.utils.logging_utils import get_logger, log_kv, setup_logging
 
@@ -51,20 +52,13 @@ def main() -> int:
         mlflow.log_artifact(str(_MODEL), artifact_path="model")
         model_uri = f"runs:/{mlflow.active_run().info.run_id}/model/embedding.pkl"
 
-        registered = mlflow.register_model(model_uri, "EmbeddingRecommender")
-
-        client = mlflow.MlflowClient()
-        client.transition_model_version_stage(
-            name="EmbeddingRecommender",
-            version=registered.version,
-            stage="Production",
-        )
+        version = register_staging(model_uri, MODEL_NAME)
         log_kv(
             logger,
             "model_registered",
-            name="EmbeddingRecommender",
-            version=registered.version,
-            stage="Production",
+            name=MODEL_NAME,
+            version=version,
+            stage="Staging",
         )
 
     log_kv(logger, "train_embedding_done", model_path=str(_MODEL))
