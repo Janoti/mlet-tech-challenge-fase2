@@ -34,17 +34,13 @@ def main() -> int:
         if version:
             mlflow.set_tag("train_data_version", version)
 
-        model = EmbeddingRecommender(
-            emb_dim=emb_params["emb_dim"],
-            hidden_dim=emb_params["hidden_dim"],
-            lr=emb_params["lr"],
-            epochs=emb_params["epochs"],
-            batch_size=emb_params["batch_size"],
-            neg_samples=emb_params["neg_samples"],
-        ).fit(train_df)
+        model = EmbeddingRecommender(**emb_params).fit(train_df)
 
         for epoch, loss in enumerate(model.epoch_losses):
             mlflow.log_metric("train_loss", loss, step=epoch)
+        for epoch, loss in enumerate(model.val_losses):
+            mlflow.log_metric("val_loss", loss, step=epoch)
+        mlflow.log_metric("epochs_trained", len(model.epoch_losses))
         mlflow.log_metric("train_n_users", model.n_users)
         mlflow.log_metric("train_n_items", model.n_items)
 
