@@ -39,8 +39,8 @@ def main() -> int:
 
         for epoch, loss in enumerate(model.epoch_losses):
             mlflow.log_metric("train_loss", loss, step=epoch)
-        for epoch, loss in enumerate(model.val_losses):
-            mlflow.log_metric("val_loss", loss, step=epoch)
+        for epoch, ndcg in enumerate(model.val_ndcgs):
+            mlflow.log_metric("val_ndcg", ndcg, step=epoch)
         mlflow.log_metric("epochs_trained", len(model.epoch_losses))
         mlflow.log_metric("train_n_users", model.n_users)
         mlflow.log_metric("train_n_items", model.n_items)

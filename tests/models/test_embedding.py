@@ -48,13 +48,14 @@ def test_same_seed_produces_same_recommendations() -> None:
     assert first == second
 
 
-def test_records_validation_loss_aligned_with_train_loss() -> None:
+def test_records_validation_ndcg_aligned_with_train_loss() -> None:
+    # Early stopping monitora NDCG de validação (ranking), não a loss BCE.
     model = _model(epochs=3, val_frac=0.3).fit(_train())
-    assert len(model.val_losses) == len(model.epoch_losses)
+    assert len(model.val_ndcgs) == len(model.epoch_losses)
     assert len(model.epoch_losses) <= 3
 
 
-def test_stops_early_when_validation_does_not_improve() -> None:
+def test_stops_early_when_validation_ndcg_does_not_improve() -> None:
     # patience baixa + muitas épocas: com seed fixa o treino para antes do teto.
     model = _model(epochs=100, patience=1, val_frac=0.3, seed=7).fit(_train())
     assert len(model.epoch_losses) < 100
