@@ -42,3 +42,11 @@ RUN mkdir -p models && chown -R mluser:mlgroup /app
 USER mluser
 EXPOSE 8000
 CMD ["uvicorn", "recsys.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# ---------- Stage 4: serving-local (modelos bakeados p/ deploy imutável) ----
+# Estende `serving` e embute os modelos treinados; a API os carrega do disco
+# (MODEL_SOURCE=local), sem depender do MLflow no boot. Usado no deploy k8s.
+FROM serving AS serving-local
+COPY --chown=mluser:mlgroup models/embedding.pkl models/baseline.pkl ./models/
+ENV MODEL_SOURCE=local
+ENV MODEL_VERSION=local
