@@ -1,0 +1,131 @@
+{{- if .Values.grafana.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recsys-grafana-datasources
+data:
+  datasource.yml: |
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        access: proxy
+        url: http://recsys-prometheus:{{ .Values.prometheus.port }}
+        isDefault: true
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recsys-grafana-dashboards-provider
+data:
+  dashboards.yml: |
+    apiVersion: 1
+    providers:
+      - name: recsys
+        type: file
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recsys-grafana-dashboard
+data:
+  recsys-api.json: |
+    {
+      "title": "Recsys API",
+      "uid": "recsys-api",
+      "schemaVersion": 39,
+      "timezone": "browser",
+      "panels": [
+        {"type": "timeseries", "title": "RPS por endpoint", "id": 1,
+         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+         "targets": [{"expr": "sum(rate(recsys_requests_total[1m])) by (endpoint)", "legendFormat": "{{`{{endpoint}}`}}"}]},
+        {"type": "timeseries", "title": "Latencia p95 (s)", "id": 2,
+         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+         "targets": [{"expr": "histogram_quantile(0.95, sum(rate(recsys_request_duration_seconds_bucket[5m])) by (le, endpoint))", "legendFormat": "{{`{{endpoint}}`}}"}]},
+        {"type": "timeseries", "title": "Taxa de fallback (cold-start)", "id": 3,
+         "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+         "targets": [{"expr": "sum(rate(recsys_recommendations_total[5m])) by (source)", "legendFormat": "{{`{{source}}`}}"}]},
+        {"type": "stat", "title": "Modelo carregado", "id": 4,
+         "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+         "targets": [{"expr": "recsys_model_loaded"}]}
+      ]
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recsys-grafana
+  labels:
+    app: recsys-grafana
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: recsys-grafana
+  template:
+    metadata:
+      labels:
+        app: recsys-grafana
+    spec:
+      containers:
+        - name: grafana
+          image: {{ .Values.grafana.image }}
+          ports:
+            - containerPort: {{ .Values.grafana.port }}
+          env:
+            - name: GF_SECURITY_ADMIN_PASSWORD
+              value: {{ .Values.grafana.adminPassword | quote }}
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+          volumeMounts:
+            - name: datasources
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: dashboards-provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboard
+              mountPath: /var/lib/grafana/dashboards
+      volumes:
+        - name: datasources
+          configMap:
+            name: recsys-grafana-datasources
+        - name: dashboards-provider
+          configMap:
+            name: recsys-grafana-dashboards-provider
+        - name: dashboard
+          configMap:
+            name: recsys-grafana-dashboard
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: recsys-grafana
+  labels:
+    app: recsys-grafana
+spec:
+  selector:
+    app: recsys-grafana
+  ports:
+    - name: http
+      port: {{ .Values.grafana.port }}
+      targetPort: {{ .Values.grafana.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: recsys-grafana
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: "grafana.{{ .Values.ingress.baseHost }}"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: recsys-grafana
+                port:
+                  number: {{ .Values.grafana.port }}
+{{- end }}

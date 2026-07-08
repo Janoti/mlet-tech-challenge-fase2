@@ -1,0 +1,6 @@
+apiVersion: v2
+name: recsys
+description: Sistema de recomendação — API FastAPI + observabilidade (Prometheus/Grafana)
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

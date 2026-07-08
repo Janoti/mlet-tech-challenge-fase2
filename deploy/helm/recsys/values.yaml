@@ -1,0 +1,36 @@
+# Valores do chart recsys. Override com `helm install ... --set` ou -f custom.yaml.
+
+image:
+  repository: recsys-api
+  tag: local              # imagem baked (stage serving-local, MODEL_SOURCE=local)
+  pullPolicy: IfNotPresent
+
+ingress:
+  className: nginx
+  # nip.io resolve *.<IP>.nip.io -> <IP>. Com k3d mapeando 80->loadbalancer,
+  # 127.0.0.1.nip.io funciona a partir do host. Hosts finais:
+  #   api.<baseHost> | grafana.<baseHost> | prometheus.<baseHost>
+  baseHost: 127.0.0.1.nip.io
+
+api:
+  replicas: 1
+  port: 8000
+  modelSource: local      # local (disco, baked) | registry (MLflow)
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+
+prometheus:
+  enabled: true
+  image: prom/prometheus:v3.1.0
+  port: 9090
+
+grafana:
+  enabled: true
+  image: grafana/grafana:11.4.0
+  port: 3000
+  adminPassword: admin
