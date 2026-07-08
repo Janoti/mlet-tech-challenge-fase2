@@ -6,7 +6,17 @@ popularidade e reporta a origem de cada recomendação (observabilidade).
 
 from __future__ import annotations
 
+import pickle
+from pathlib import Path
+
+import mlflow
+
 from recsys.models.base import Recommender
+from recsys.utils.logging_utils import get_logger, log_kv
+
+_logger = get_logger(__name__)
+_MODEL_NAME = "EmbeddingRecommender"
+_BASELINE_PATH = Path("models/baseline.pkl")
 
 
 class ModelService:
@@ -32,3 +42,44 @@ class ModelService:
         if items:
             return items, "embedding"
         return self._fallback.recommend(user_id, k), "fallback"
+
+
+def _load_production(name: str) -> tuple[Recommender, str]:
+    """Baixa e desserializa a versão em Production do Registry.
+
+    Args:
+        name: Nome do modelo no MLflow Registry.
+
+    Returns:
+        Tupla (modelo, version) carregada do Registry Production.
+
+    Raises:
+        RuntimeError: Se nenhuma versão em Production está registrada.
+    """
+    client = mlflow.MlflowClient()
+    versions = client.get_latest_versions(name, stages=["Production"])
+    if not versions:
+        raise RuntimeError(f"Nenhuma versão de '{name}' em Production no Registry.")
+    mv = versions[0]
+    local_path = mlflow.artifacts.download_artifacts(mv.source)
+    with open(local_path, "rb") as fh:
+        return pickle.load(fh), mv.version
+
+
+def load_model_service(
+    name: str = _MODEL_NAME, baseline_path: Path = _BASELINE_PATH
+) -> ModelService:
+    """Carrega o primário do Registry e o fallback do disco, compondo o serviço.
+
+    Args:
+        name: Nome do modelo no Registry (padrão: EmbeddingRecommender).
+        baseline_path: Caminho para o arquivo .pkl de fallback.
+
+    Returns:
+        ModelService pronto para inferência com ambos os modelos.
+    """
+    primary, version = _load_production(name)
+    with baseline_path.open("rb") as fh:
+        fallback = pickle.load(fh)
+    log_kv(_logger, "model_service_loaded", name=name, version=version, source="registry")
+    return ModelService(primary=primary, fallback=fallback, model_version=version)

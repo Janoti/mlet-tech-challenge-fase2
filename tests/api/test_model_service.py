@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import pickle
+from pathlib import Path
+
 import pandas as pd
 
+import recsys.api.model_service as ms
 from recsys.api.model_service import ModelService
 from recsys.models.base import Recommender
 
@@ -38,3 +42,15 @@ def test_cold_start_falls_back_to_popularity() -> None:
     items, source = _service().recommend(user_id=999, k=3)
     assert items == [9, 8, 7]
     assert source == "fallback"
+
+
+def test_load_model_service_composes_registry_and_baseline(tmp_path, monkeypatch) -> None:
+    # primário vem do Registry (mockado); baseline é lido do disco.
+    monkeypatch.setattr(ms, "_load_production", lambda name: (_Primary(), "7"))
+    baseline_file = tmp_path / "baseline.pkl"
+    baseline_file.write_bytes(pickle.dumps(_Fallback()))
+
+    service = ms.load_model_service(baseline_path=Path(baseline_file))
+
+    assert service.model_version == "7"
+    assert service.recommend(999, 3) == ([9, 8, 7], "fallback")
