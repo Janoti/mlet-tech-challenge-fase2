@@ -53,6 +53,7 @@ seaborn = "^0.13"               # Gráficos estatísticos no EDA
 ipykernel = "^6.29"             # Suporte a notebooks Jupyter no VSCode
 nbformat = "^5.10.4"
 nbconvert = "^7.17.1"
+httpx = "^0.27"                 # TestClient do FastAPI (starlette)
 
 # ----------------------------------------------------------------------------
 # Dependências de pipeline (orquestração)
@@ -72,9 +73,17 @@ dvc = "^3.0"                    # Versionamento de dados e pipeline reprodutíve
 [tool.poetry.group.dl.dependencies]
 torch = "^2.4"                  # Rede neural (MLP / embedding) — Etapa 4
 
-# ----------------------------------------------------------------------------
+# ============================================================================
+# Dependências de serving (API REST e observabilidade)
+# ============================================================================
+[tool.poetry.group.serving.dependencies]
+fastapi = "^0.115"              # API REST de inferência (Swagger nativo)
+uvicorn = { extras = ["standard"], version = "^0.32" }  # ASGI server
+prometheus-client = "^0.21"     # métricas /metrics
+
+# ============================================================================
 # Console scripts — entrypoints dos stages do DVC (chamados no dvc.yaml).
-# ----------------------------------------------------------------------------
+# ============================================================================
 [tool.poetry.scripts]
 recsys-generate = "recsys.pipeline.generate:main"
 recsys-preprocess = "recsys.pipeline.preprocess:main"
