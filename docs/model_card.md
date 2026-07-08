@@ -115,3 +115,9 @@ poetry run mlflow ui                 # Models → EmbeddingRecommender (Staging/
 
 Cada `dvc repro` registra uma nova versão em `Staging` e, se superar o baseline, a promove
 a `Production` (arquivando a anterior). Histórico de versões preservado para auditoria e rollback.
+
+### Serving online
+
+O modelo em `Production` é servido por uma API FastAPI (`src/recsys/api/`), que carrega a
+versão promovida do Registry e aplica fallback de popularidade em cold-start. Observabilidade
+via Prometheus (`/metrics`) + Grafana. Endpoint principal: `GET /recommendations/{user_id}?k=`.

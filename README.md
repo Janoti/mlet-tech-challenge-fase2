@@ -153,6 +153,24 @@ make compose-up     # = docker compose up --build
 
 Ver detalhes em [docs/etapa-03-resumo.md](docs/etapa-03-resumo.md).
 
+### API de recomendação (serving online)
+
+Além do pipeline batch (DVC), o modelo em Production do MLflow Registry pode ser
+servido via API REST (FastAPI):
+
+- `GET /recommendations/{user_id}?k=10` — top-k recomendações (cai em popularidade no cold-start)
+- `GET /health` — readiness/liveness
+- `GET /metrics` — métricas Prometheus
+- `GET /docs` — Swagger interativo
+
+Subir o stack completo (API + MLflow + Prometheus + Grafana):
+
+    docker compose up --build
+
+- API: http://localhost:8000/docs
+- Grafana: http://localhost:3000 (dashboard "Recsys API")
+- Prometheus: http://localhost:9090
+
 Saída esperada do passo 3:
 
 ```
