@@ -45,5 +45,39 @@ services:
     # `core.no_scm` (apenas no container, via --local) permite `dvc repro` sem git.
     command: ["sh", "-c", "dvc config core.no_scm true --local && dvc repro"]
 
+  api:
+    build:
+      context: .
+      target: serving
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    environment:
+      MLFLOW_TRACKING_URI: http://mlflow:5000
+    ports:
+      - "8000:8000"
+
+  prometheus:
+    image: prom/prometheus:v3.1.0
+    volumes:
+      - ./grafana-prometheus/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    depends_on:
+      - api
+
+  grafana:
+    image: grafana/grafana:11.4.0
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+    volumes:
+      - ./grafana-prometheus/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana-prometheus/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
 volumes:
   mlflow_data:

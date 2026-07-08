@@ -1,0 +1,28 @@
+{
+  "title": "Recsys API",
+  "uid": "recsys-api",
+  "schemaVersion": 39,
+  "timezone": "browser",
+  "panels": [
+    {
+      "type": "timeseries", "title": "RPS por endpoint", "id": 1,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [{"expr": "sum(rate(recsys_requests_total[1m])) by (endpoint)", "legendFormat": "{{endpoint}}"}]
+    },
+    {
+      "type": "timeseries", "title": "Latência p95 (s)", "id": 2,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [{"expr": "histogram_quantile(0.95, sum(rate(recsys_request_duration_seconds_bucket[5m])) by (le, endpoint))", "legendFormat": "{{endpoint}}"}]
+    },
+    {
+      "type": "timeseries", "title": "Taxa de fallback (cold-start)", "id": 3,
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [{"expr": "sum(rate(recsys_recommendations_total[5m])) by (source)", "legendFormat": "{{source}}"}]
+    },
+    {
+      "type": "stat", "title": "Modelo carregado", "id": 4,
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [{"expr": "recsys_model_loaded"}]
+    }
+  ]
+}

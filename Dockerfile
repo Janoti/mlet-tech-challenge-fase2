@@ -27,3 +27,18 @@ RUN mkdir -p data/raw data/interim data/processed models metrics \
 USER mluser
 # Pipeline reprodutível dentro do container.
 CMD ["dvc", "repro"]
+
+# ---------- Stage 3: serving (API FastAPI + torch) --------------------------
+FROM python:3.11-slim AS serving
+WORKDIR /app
+RUN addgroup --system mlgroup && adduser --system --ingroup mlgroup mluser
+COPY requirements-serving.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements-serving.txt
+COPY pyproject.toml README.md ./
+COPY src ./src
+RUN pip install --no-cache-dir --no-deps --prefix=/install . && cp -r /install/* /usr/local/
+COPY params.yaml ./
+RUN mkdir -p models && chown -R mluser:mlgroup /app
+USER mluser
+EXPOSE 8000
+CMD ["uvicorn", "recsys.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

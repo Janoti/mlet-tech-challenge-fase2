@@ -297,6 +297,12 @@ requirements:  ## Regenera requirements.txt do lock (deps de runtime: main + pip
 	@$(POETRY) export -f requirements.txt --only main,pipeline --without-hashes -o requirements.txt
 	$(call _ok,requirements.txt atualizado)
 
+.PHONY: requirements-serving
+requirements-serving:  ## Exporta requirements com deps de serving (API).
+	$(call _section,Exportando requirements-serving.txt (main,serving,dl))
+	@$(POETRY) export --only main,serving,dl --without-hashes -f requirements.txt -o requirements-serving.txt
+	$(call _ok,requirements-serving.txt atualizado)
+
 .PHONY: docker-build
 docker-build:  ## Builda a imagem Docker multi-stage (recsys:0.3.0).
 	$(call _section,Docker build — recsys:0.3.0)
