@@ -6,7 +6,7 @@ import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Query, Request, Response
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.middleware.base import RequestResponseEndpoint
 
@@ -19,6 +19,25 @@ from recsys.api.prometheus_metrics import (
     REQUESTS,
 )
 from recsys.api.schemas import HealthResponse, RecommendationResponse
+
+
+def _require_service(holder: dict[str, ModelService | None]) -> ModelService:
+    """Retorna o serviço carregado ou levanta 503 se ainda não disponível.
+
+    Args:
+        holder: Dicionário com chave ``"service"`` apontando para
+            ``ModelService`` ou ``None``.
+
+    Returns:
+        Instância de ``ModelService`` pronta para uso.
+
+    Raises:
+        HTTPException: 503 quando o modelo ainda não foi carregado.
+    """
+    service = holder["service"]
+    if service is None:
+        raise HTTPException(status_code=503, detail="modelo não carregado")
+    return service
 
 
 def create_app(service: ModelService | None = None) -> FastAPI:
@@ -54,7 +73,7 @@ def create_app(service: ModelService | None = None) -> FastAPI:
         start = time.perf_counter()
         response = await call_next(request)
         route = request.scope.get("route")
-        endpoint = getattr(route, "path", request.url.path)
+        endpoint = route.path if route is not None else "unmatched"
         REQUEST_DURATION.labels(endpoint=endpoint).observe(time.perf_counter() - start)
         REQUESTS.labels(endpoint=endpoint, status=response.status_code).inc()
         return response
@@ -79,13 +98,14 @@ def create_app(service: ModelService | None = None) -> FastAPI:
         k: int = Query(10, ge=1, le=100),  # noqa: B008
     ) -> RecommendationResponse:
         """Retorna top-k recomendações para o usuário."""
-        items, source = holder["service"].recommend(user_id, k)  # type: ignore[union-attr]
+        svc = _require_service(holder)
+        items, source = svc.recommend(user_id, k)
         RECOMMENDATIONS.labels(source=source).inc()
         return RecommendationResponse(
             user_id=user_id,
             k=k,
             items=items,
-            model_version=holder["service"].model_version,  # type: ignore[union-attr]
+            model_version=svc.model_version,
             source=source,
         )
 
