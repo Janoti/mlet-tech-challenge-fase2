@@ -33,7 +33,14 @@ FROM python:3.11-slim AS serving
 WORKDIR /app
 RUN addgroup --system mlgroup && adduser --system --ingroup mlgroup mluser
 COPY requirements-serving.txt .
-RUN pip install --no-cache-dir --prefix=/install -r requirements-serving.txt
+# torch CPU-only: serving roda em CPU. O lock (resolvido com torch CUDA) arrasta
+# ~2.7GB de libs nvidia/cuda/triton no requirements — removidas aqui, pois o wheel
+# +cpu não depende delas. Instala o torch +cpu da versão pinada do índice do PyTorch.
+RUN TORCH_VER=$(grep '^torch==' requirements-serving.txt | grep '3.11' | sed -E 's/^torch==([^ ;]+).*/\1/') \
+    && grep -viE '^(torch|nvidia|cuda|triton)' requirements-serving.txt > requirements-nocuda.txt \
+    && pip install --no-cache-dir --prefix=/install "torch==${TORCH_VER}" \
+       --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir --prefix=/install -r requirements-nocuda.txt
 COPY pyproject.toml README.md ./
 COPY src ./src
 RUN pip install --no-cache-dir --no-deps --prefix=/install . && cp -r /install/* /usr/local/
