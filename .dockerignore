@@ -21,6 +21,10 @@ mlruns
 mlartifacts
 .dvc/cache
 .dvc/tmp
+# Exceção: o stage `serving-local` bakeia estes modelos treinados na imagem
+# (deploy imutável, MODEL_SOURCE=local). Os demais stages não os copiam.
+!models/embedding.pkl
+!models/baseline.pkl
 
 # Editores / SO
 .vscode

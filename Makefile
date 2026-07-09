@@ -35,6 +35,15 @@ PARQUET_BASIC  := data/raw/interactions.parquet
 PARQUET_ENRICH := data/raw/interactions_enriched.parquet
 NOTEBOOK       := notebooks/01_eda.ipynb
 
+# ---------- Deploy Kubernetes local (k3d + Helm) -----------------------------
+K8S_CLUSTER    ?= fase2
+K8S_NS         ?= recsys
+K8S_IMAGE      ?= recsys-api
+K8S_TAG        ?= local
+K8S_BASE_HOST  ?= 127.0.0.1.nip.io
+K8S_CHART      := deploy/helm/recsys
+K8S_LOAD_REQ   ?= 300
+
 # Helper interno: imprime cabeçalho de seção.
 define _section
 	@printf "\n$(BOLD)$(CYAN)══════════════════════════════════════════════════════════════════$(RESET)\n"
@@ -62,7 +71,7 @@ help:  ## Mostra esta ajuda (alvo default).
 	@printf "$(BLUE)Sistema de recomendação para e-commerce (FIAP MLE Grupo 4)$(RESET)\n\n"
 	@printf "$(BOLD)Uso:$(RESET) make $(YELLOW)<alvo>$(RESET)\n\n"
 	@printf "$(BOLD)Alvos disponíveis:$(RESET)\n"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
 		| awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-20s$(RESET) %s\n", $$1, $$2}'
 	@printf "\n$(BOLD)Fluxos comuns:$(RESET)\n"
 	@printf "  $(GREEN)Primeira vez:$(RESET)   make setup && make validate\n"
@@ -330,6 +339,104 @@ check: lint format-check test  ## CI local: lint + format-check + test. Use ante
 all: setup validate check data eda  ## Pipeline completo: setup → validate → check → data → eda.
 	$(call _section,Pipeline completo terminou)
 	$(call _ok,Tudo verde — projeto pronto)
+
+
+# =============================================================================
+# Deploy local em Kubernetes (k3d + Helm + ingress-nginx + nip.io)
+# Guia completo: docs/deploy-k8s.md
+# =============================================================================
+.PHONY: k8s
+k8s: k8s-tools k8s-cluster k8s-image k8s-ingress k8s-deploy k8s-urls  ## Deploy completo: instala ferramentas (se faltarem) → cluster → imagem → ingress → chart.
+	$(call _ok,Deploy k8s no ar — veja as URLs acima)
+
+.PHONY: k8s-tools
+k8s-tools:  ## Garante k3d, kubectl e helm instalados (baixa+instala os que faltarem; Linux x86_64).
+	$(call _section,Ferramentas k8s (k3d / kubectl / helm))
+	@if command -v k3d >/dev/null 2>&1; then printf "$(GREEN)✓ k3d já instalado$(RESET)\n"; \
+	else printf "$(YELLOW)⚠ k3d ausente — instalando...$(RESET)\n"; \
+		curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | bash; fi
+	@if command -v kubectl >/dev/null 2>&1; then printf "$(GREEN)✓ kubectl já instalado$(RESET)\n"; \
+	else printf "$(YELLOW)⚠ kubectl ausente — instalando (requer sudo)...$(RESET)\n"; \
+		curl -sLO "https://dl.k8s.io/release/$$(curl -sL https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl" \
+		&& sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl && rm -f kubectl; fi
+	@if command -v helm >/dev/null 2>&1; then printf "$(GREEN)✓ helm já instalado$(RESET)\n"; \
+	else printf "$(YELLOW)⚠ helm ausente — instalando...$(RESET)\n"; \
+		curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash; fi
+
+.PHONY: k8s-cluster
+k8s-cluster:  ## Cria o cluster k3d (idempotente; mapeia 80/443 -> loadbalancer, desabilita traefik).
+	$(call _section,Cluster k3d '$(K8S_CLUSTER)')
+	@if k3d cluster list 2>/dev/null | grep -qw "$(K8S_CLUSTER)"; then \
+		printf "$(GREEN)✓ cluster '$(K8S_CLUSTER)' já existe$(RESET)\n"; \
+	else \
+		k3d cluster create $(K8S_CLUSTER) \
+			--servers 1 --agents 2 \
+			--port "80:80@loadbalancer" --port "443:443@loadbalancer" \
+			--k3s-arg "--disable=traefik@server:0"; \
+	fi
+
+.PHONY: k8s-image
+k8s-image:  ## Builda a imagem serving-local (modelo bakeado) e importa para o cluster k3d.
+	$(call _section,Imagem $(K8S_IMAGE):$(K8S_TAG) (serving-local) -> cluster)
+	@docker build --target serving-local -t $(K8S_IMAGE):$(K8S_TAG) .
+	@k3d image import $(K8S_IMAGE):$(K8S_TAG) -c $(K8S_CLUSTER)
+
+.PHONY: k8s-ingress
+k8s-ingress:  ## Instala o ingress-nginx no cluster (idempotente) e aguarda ficar pronto.
+	$(call _section,ingress-nginx)
+	@if helm status ingress-nginx -n ingress-nginx >/dev/null 2>&1; then \
+		printf "$(GREEN)✓ ingress-nginx já instalado$(RESET)\n"; \
+	else \
+		helm repo add ingress-nginx https://kubernetes.github.io/ingress-nginx >/dev/null; \
+		helm repo update >/dev/null; \
+		helm install ingress-nginx ingress-nginx/ingress-nginx \
+			--namespace ingress-nginx --create-namespace \
+			--set controller.publishService.enabled=true; \
+	fi
+	@kubectl -n ingress-nginx rollout status deployment ingress-nginx-controller --timeout=180s
+
+.PHONY: k8s-deploy
+k8s-deploy:  ## Instala/atualiza o chart recsys via Helm e aguarda o rollout da API.
+	$(call _section,Helm upgrade --install recsys (ns: $(K8S_NS)))
+	@helm upgrade --install recsys $(K8S_CHART) \
+		--namespace $(K8S_NS) --create-namespace \
+		--set image.repository=$(K8S_IMAGE) \
+		--set image.tag=$(K8S_TAG) \
+		--set ingress.baseHost=$(K8S_BASE_HOST)
+	@kubectl -n $(K8S_NS) rollout status deployment/recsys-api --timeout=180s
+
+.PHONY: k8s-urls
+k8s-urls:  ## Mostra as URLs de acesso (API/Swagger, Prometheus, Grafana).
+	$(call _section,URLs (nip.io -> $(K8S_BASE_HOST)))
+	@printf "  $(GREEN)API — Swagger:$(RESET)   http://api.$(K8S_BASE_HOST)/docs\n"
+	@printf "  $(GREEN)API — health:$(RESET)    http://api.$(K8S_BASE_HOST)/health\n"
+	@printf "  $(GREEN)API — métricas:$(RESET)  http://api.$(K8S_BASE_HOST)/metrics\n"
+	@printf "  $(GREEN)Prometheus:$(RESET)      http://prometheus.$(K8S_BASE_HOST)\n"
+	@printf "  $(GREEN)Grafana (admin/admin):$(RESET) http://grafana.$(K8S_BASE_HOST)\n"
+
+.PHONY: k8s-load
+k8s-load:  ## Gera tráfego na API (mix embedding/fallback/health) p/ popular o dashboard. K8S_LOAD_REQ=300
+	$(call _section,Gerando carga na API ($(K8S_LOAD_REQ) reqs) -> Grafana)
+	@base="http://api.$(K8S_BASE_HOST)"; \
+	if ! curl -sf "$$base/health" >/dev/null 2>&1; then \
+		printf "$(RED)✗ API não responde em $$base — rode 'make k8s' antes$(RESET)\n"; exit 1; fi; \
+	for i in $$(seq 1 $(K8S_LOAD_REQ)); do \
+		case $$((RANDOM % 10)) in \
+			0|1) curl -s -o /dev/null "$$base/health" ;; \
+			2)   curl -s -o /dev/null "$$base/recommendations/$$((100000 + RANDOM % 100000))?k=$$((1 + RANDOM % 10))" ;; \
+			*)   curl -s -o /dev/null "$$base/recommendations/$$((1 + RANDOM % 1000))?k=$$((1 + RANDOM % 10))" ;; \
+		esac; \
+		[ $$((i % 25)) -eq 0 ] && printf "."; \
+	done; echo; \
+	printf "$(GREEN)✓ $(K8S_LOAD_REQ) requisições enviadas — abra http://grafana.$(K8S_BASE_HOST) (dashboard 'Recsys API')$(RESET)\n"
+
+.PHONY: k8s-down
+k8s-down:  ## Remove o chart, o ingress-nginx e deleta o cluster k3d.
+	$(call _section,Derrubando deploy k8s)
+	@helm uninstall recsys -n $(K8S_NS) 2>/dev/null || true
+	@helm uninstall ingress-nginx -n ingress-nginx 2>/dev/null || true
+	@k3d cluster delete $(K8S_CLUSTER) 2>/dev/null || true
+	$(call _ok,cluster '$(K8S_CLUSTER)' removido)
 
 
 # =============================================================================

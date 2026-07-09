@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import time
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -10,7 +11,11 @@ from fastapi import FastAPI, HTTPException, Query, Request, Response
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 from starlette.middleware.base import RequestResponseEndpoint
 
-from recsys.api.model_service import ModelService, load_model_service
+from recsys.api.model_service import (
+    ModelService,
+    load_model_service,
+    load_model_service_from_disk,
+)
 from recsys.api.prometheus_metrics import (
     MODEL_INFO,
     MODEL_LOADED,
@@ -19,6 +24,13 @@ from recsys.api.prometheus_metrics import (
     REQUESTS,
 )
 from recsys.api.schemas import HealthResponse, RecommendationResponse
+
+
+def _load_configured_service() -> ModelService:
+    """Carrega o serviço conforme ``MODEL_SOURCE`` (``registry`` padrão | ``local``)."""
+    if os.getenv("MODEL_SOURCE", "registry") == "local":
+        return load_model_service_from_disk(version=os.getenv("MODEL_VERSION", "local"))
+    return load_model_service()
 
 
 def _require_service(holder: dict[str, ModelService | None]) -> ModelService:
@@ -55,7 +67,7 @@ def create_app(service: ModelService | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:  # noqa: ARG001
         if holder["service"] is None:
-            holder["service"] = load_model_service()
+            holder["service"] = _load_configured_service()
         MODEL_LOADED.set(1)
         MODEL_INFO.info({"version": holder["service"].model_version})  # type: ignore[union-attr]
         yield

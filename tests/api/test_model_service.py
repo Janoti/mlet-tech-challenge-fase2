@@ -54,3 +54,19 @@ def test_load_model_service_composes_registry_and_baseline(tmp_path, monkeypatch
 
     assert service.model_version == "7"
     assert service.recommend(999, 3) == ([9, 8, 7], "fallback")
+
+
+def test_load_model_service_from_disk_composes(tmp_path) -> None:
+    # deploy imutável: embedding e baseline lidos de arquivos .pkl no disco.
+    embedding_file = tmp_path / "embedding.pkl"
+    embedding_file.write_bytes(pickle.dumps(_Primary()))
+    baseline_file = tmp_path / "baseline.pkl"
+    baseline_file.write_bytes(pickle.dumps(_Fallback()))
+
+    service = ms.load_model_service_from_disk(
+        embedding_path=Path(embedding_file), baseline_path=Path(baseline_file), version="local"
+    )
+
+    assert service.model_version == "local"
+    assert service.recommend(1, 3) == ([1, 2, 3], "embedding")
+    assert service.recommend(999, 3) == ([9, 8, 7], "fallback")

@@ -16,6 +16,7 @@ from recsys.utils.logging_utils import get_logger, log_kv
 
 _logger = get_logger(__name__)
 _MODEL_NAME = "EmbeddingRecommender"
+_EMBEDDING_PATH = Path("models/embedding.pkl")
 _BASELINE_PATH = Path("models/baseline.pkl")
 
 
@@ -82,4 +83,30 @@ def load_model_service(
     with baseline_path.open("rb") as fh:
         fallback = pickle.load(fh)
     log_kv(_logger, "model_service_loaded", name=name, version=version, source="registry")
+    return ModelService(primary=primary, fallback=fallback, model_version=version)
+
+
+def load_model_service_from_disk(
+    embedding_path: Path = _EMBEDDING_PATH,
+    baseline_path: Path = _BASELINE_PATH,
+    version: str = "local",
+) -> ModelService:
+    """Carrega primário e fallback de arquivos .pkl no disco (deploy imutável).
+
+    Alternativa ao Registry para imagens que bakeiam o modelo: sem dependência
+    do MLflow no boot. Selecionada via ``MODEL_SOURCE=local``.
+
+    Args:
+        embedding_path: Caminho do .pkl do modelo primário (embedding).
+        baseline_path: Caminho do .pkl do fallback (popularidade).
+        version: Rótulo de versão reportado pelo serviço.
+
+    Returns:
+        ModelService pronto para inferência com ambos os modelos.
+    """
+    with embedding_path.open("rb") as fh:
+        primary = pickle.load(fh)
+    with baseline_path.open("rb") as fh:
+        fallback = pickle.load(fh)
+    log_kv(_logger, "model_service_loaded", version=version, source="disk")
     return ModelService(primary=primary, fallback=fallback, model_version=version)

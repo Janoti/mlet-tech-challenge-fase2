@@ -16,8 +16,8 @@ navegação dos usuários**. O modelo central é uma rede neural (MLP ou embeddi
 em PyTorch, com pipeline completo containerizado em Docker, dados versionados com DVC,
 experimentos rastreados no MLflow e código seguindo padrões profissionais de Clean Code.
 
-> **Status atual: Etapas 1, 2, 3 e 4 concluídas.** Deploy bônus (Kubernetes) pendente.
-> Ver [§ 5 Roadmap](#5-roadmap).
+> **Status atual: Etapas 1, 2, 3 e 4 concluídas + deploy bônus em Kubernetes local
+> (`make k8s`).** Pendente apenas o vídeo STAR. Ver [§ 5 Roadmap](#5-roadmap).
 
 ## Arquitetura planejada
 
@@ -115,8 +115,10 @@ classDiagram
 - [x] Baseline **SVD (scikit-learn)** + comparação nas 4 métricas: popularidade < SVD < embedding (Etapa 4)
 - [x] Documentação técnica `docs/etapa-04-modelo-embedding.md` + **Model Card** (`docs/model_card.md`) (Etapa 4)
 - [x] MLflow Model Registry com **gate de qualidade Staging → Production** (Etapa 4)
+- [x] **API de recomendação (FastAPI)** + observabilidade (Prometheus + Grafana) — serving online
+- [x] **Deploy bônus em Kubernetes local** (k3d + Helm + ingress-nginx + nip.io) — container acessível via URL, um comando `make k8s`
 - [ ] Vídeo STAR de 5 minutos (Etapa 4 — pendente)
-- [ ] Deploy bônus em nuvem (Kubernetes) — container acessível via URL pública
+- [ ] Deploy em nuvem pública (opcional — a stack já é portável para qualquer cluster K8s)
 
 ## Quick Start
 
@@ -171,6 +173,43 @@ Subir o stack completo (API + MLflow + Prometheus + Grafana):
 - Grafana: http://localhost:3000 (dashboard "Recsys API")
 - Prometheus: http://localhost:9090
 
+### Deploy em Kubernetes (bônus) — um comando
+
+Sobe a stack num cluster Kubernetes local (**k3d**) com **Helm** e **ingress-nginx**,
+exposta por URL via **nip.io** (sem editar `/etc/hosts`). O modelo é **bakeado na
+imagem** (`MODEL_SOURCE=local`), então a API não depende do MLflow no boot.
+
+```bash
+make k8s          # instala ferramentas ausentes → cria cluster → builda+importa
+                  # imagem → sobe ingress → aplica o chart → imprime as URLs
+```
+
+Ao final, as URLs aparecem no output (resolvem para 127.0.0.1):
+
+| Serviço | URL |
+|---|---|
+| API — Swagger | http://api.127.0.0.1.nip.io/docs |
+| API — health | http://api.127.0.0.1.nip.io/health |
+| API — métricas | http://api.127.0.0.1.nip.io/metrics |
+| Prometheus | http://prometheus.127.0.0.1.nip.io |
+| Grafana (admin/admin) | http://grafana.127.0.0.1.nip.io |
+
+Testar o serviço e **validar o dashboard** com tráfego real:
+
+```bash
+# recomendação para usuário conhecido (source=embedding) e desconhecido (source=fallback)
+curl -s "http://api.127.0.0.1.nip.io/recommendations/1?k=5"
+curl -s "http://api.127.0.0.1.nip.io/recommendations/999999?k=5"
+
+make k8s-load     # gera tráfego (mix embedding/fallback/health) — popula o Grafana
+make k8s-down     # derruba tudo (chart + ingress + cluster)
+```
+
+**Reprodução em outra máquina:** só Docker é obrigatório — `make k8s-tools` instala
+`k3d`, `kubectl` e `helm` que faltarem (Linux x86_64). Requer portas 80/443 livres e
+~4GB de disco para a imagem de serving. Passo a passo detalhado (e ajuste para IP
+diferente de 127.0.0.1) em [docs/deploy-k8s.md](docs/deploy-k8s.md).
+
 Saída esperada do passo 3:
 
 ```
@@ -198,6 +237,10 @@ purchase         1465
 | **Instalar pre-commit hooks localmente** | `poetry run pre-commit install` | Ativar checks automáticos no `git commit` |
 | **CI local completo** | `make check` | Lint + format + testes antes de abrir PR |
 | **Pipeline completo** | `make all` | Setup → validate → check → data → eda |
+| **Serving local (Docker)** | `docker compose up --build` | API + MLflow + Prometheus + Grafana em `localhost` |
+| **Deploy Kubernetes (bônus)** | `make k8s` | Sobe a stack em k3d + Helm, exposta por URL (nip.io) |
+| **Gerar tráfego p/ dashboard** | `make k8s-load` | Popula os painéis do Grafana (RPS, p95, fallback) |
+| **Derrubar o deploy K8s** | `make k8s-down` | Remove chart + ingress + cluster k3d |
 
 ## 1. Objetivo
 
@@ -371,7 +414,7 @@ mlet-tech-challenge-fase2/
 | **2** | Ambiente e Dependências | `poetry.lock`, `Pydantic Settings`, `.env`, `validate_env.py` | ✅ Concluída |
 | **3** | Containerização e Versionamento | `Dockerfile` multi-stage, `docker-compose`, `dvc init`, `dvc.yaml` (5 stages), MLflow tracking | ✅ Concluída |
 | **4** | Rede Neural, Registry e Entrega | MLP PyTorch (early stopping), baselines sklearn (≥ 4 métricas), Model Registry Staging → Production com gate, Model Card | ✅ Concluída (falta só o vídeo STAR) |
-| **Bônus** | Deploy em nuvem | Kubernetes — container acessível via URL pública | ⏳ |
+| **Bônus** | Deploy em Kubernetes | k3d + Helm + ingress-nginx + nip.io — container acessível via URL, um `make k8s`. Nuvem pública é opcional (stack já portável) | ✅ Local concluído |
 
 Detalhes em [docs/etapa-01-resumo.md](docs/etapa-01-resumo.md), [docs/etapa-02-resumo.md](docs/etapa-02-resumo.md) e [docs/etapa-03-resumo.md](docs/etapa-03-resumo.md).
 
@@ -652,12 +695,12 @@ Documentação adicional será criada conforme as etapas avançam:
 
 ## 11. Próximos passos imediatos
 
-Etapas 1 a 3 concluídas. Foco agora na **Etapa 4**:
+Etapas 1 a 4 concluídas, incluindo o **bônus de deploy em Kubernetes local** (`make k8s`).
+Restam:
 
-1. Implementar a rede neural PyTorch (MLP / embedding) sobre a interface `Recommender`, entrando no pipeline sem alterar os stages `train`/`evaluate`.
-2. Comparar a rede com os baselines em ≥ 4 métricas (P@K, R@K, NDCG, MAP) e registrar tudo no MLflow.
-3. Promover o melhor modelo a **Production** via MLflow Model Registry e escrever o **Model Card**.
-4. (Bônus) Deploy do container em nuvem (Kubernetes) acessível via URL pública.
+1. Gravar o **vídeo STAR de 5 minutos** apresentando a solução ponta a ponta.
+2. (Opcional) Publicar a stack num cluster gerenciado em nuvem — o chart Helm e a
+   imagem já são portáveis; bastaria um registry e um Ingress com host público.
 
 ## 12. Contato
 

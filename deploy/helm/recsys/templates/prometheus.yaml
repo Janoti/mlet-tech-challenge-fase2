@@ -1,0 +1,76 @@
+{{- if .Values.prometheus.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: recsys-prometheus-config
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 10s
+    scrape_configs:
+      - job_name: recsys-api
+        static_configs:
+          - targets: ["recsys-api:{{ .Values.api.port }}"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: recsys-prometheus
+  labels:
+    app: recsys-prometheus
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: recsys-prometheus
+  template:
+    metadata:
+      labels:
+        app: recsys-prometheus
+    spec:
+      containers:
+        - name: prometheus
+          image: {{ .Values.prometheus.image }}
+          ports:
+            - containerPort: {{ .Values.prometheus.port }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/prometheus/prometheus.yml
+              subPath: prometheus.yml
+      volumes:
+        - name: config
+          configMap:
+            name: recsys-prometheus-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: recsys-prometheus
+  labels:
+    app: recsys-prometheus
+spec:
+  selector:
+    app: recsys-prometheus
+  ports:
+    - name: http
+      port: {{ .Values.prometheus.port }}
+      targetPort: {{ .Values.prometheus.port }}
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: recsys-prometheus
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: "prometheus.{{ .Values.ingress.baseHost }}"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: recsys-prometheus
+                port:
+                  number: {{ .Values.prometheus.port }}
+{{- end }}
