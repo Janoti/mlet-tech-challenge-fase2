@@ -42,6 +42,7 @@ K8S_IMAGE      ?= recsys-api
 K8S_TAG        ?= local
 K8S_BASE_HOST  ?= 127.0.0.1.nip.io
 K8S_CHART      := deploy/helm/recsys
+K8S_LOAD_REQ   ?= 300
 
 # Helper interno: imprime cabeçalho de seção.
 define _section
@@ -412,6 +413,22 @@ k8s-urls:  ## Mostra as URLs de acesso (API/Swagger, Prometheus, Grafana).
 	@printf "  $(GREEN)API — métricas:$(RESET)  http://api.$(K8S_BASE_HOST)/metrics\n"
 	@printf "  $(GREEN)Prometheus:$(RESET)      http://prometheus.$(K8S_BASE_HOST)\n"
 	@printf "  $(GREEN)Grafana (admin/admin):$(RESET) http://grafana.$(K8S_BASE_HOST)\n"
+
+.PHONY: k8s-load
+k8s-load:  ## Gera tráfego na API (mix embedding/fallback/health) p/ popular o dashboard. K8S_LOAD_REQ=300
+	$(call _section,Gerando carga na API ($(K8S_LOAD_REQ) reqs) -> Grafana)
+	@base="http://api.$(K8S_BASE_HOST)"; \
+	if ! curl -sf "$$base/health" >/dev/null 2>&1; then \
+		printf "$(RED)✗ API não responde em $$base — rode 'make k8s' antes$(RESET)\n"; exit 1; fi; \
+	for i in $$(seq 1 $(K8S_LOAD_REQ)); do \
+		case $$((RANDOM % 10)) in \
+			0|1) curl -s -o /dev/null "$$base/health" ;; \
+			2)   curl -s -o /dev/null "$$base/recommendations/$$((100000 + RANDOM % 100000))?k=$$((1 + RANDOM % 10))" ;; \
+			*)   curl -s -o /dev/null "$$base/recommendations/$$((1 + RANDOM % 1000))?k=$$((1 + RANDOM % 10))" ;; \
+		esac; \
+		[ $$((i % 25)) -eq 0 ] && printf "."; \
+	done; echo; \
+	printf "$(GREEN)✓ $(K8S_LOAD_REQ) requisições enviadas — abra http://grafana.$(K8S_BASE_HOST) (dashboard 'Recsys API')$(RESET)\n"
 
 .PHONY: k8s-down
 k8s-down:  ## Remove o chart, o ingress-nginx e deleta o cluster k3d.
