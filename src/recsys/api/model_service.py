@@ -64,7 +64,7 @@ def _load_production(name: str) -> tuple[Recommender, str]:
     mv = versions[0]
     local_path = mlflow.artifacts.download_artifacts(mv.source)
     with open(local_path, "rb") as fh:
-        return pickle.load(fh), mv.version
+        return pickle.load(fh), str(mv.version)
 
 
 def load_model_service(
