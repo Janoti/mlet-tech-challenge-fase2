@@ -3,17 +3,25 @@
 # imagem externa e com versão garantidamente idêntica entre cliente e servidor.
 services:
   mlflow:
-    build: .
+    # `target: runtime` explícito: o default (último stage) passou a ser o
+    # serving-local, que não contém DVC — os serviços batch usam o runtime.
+    build:
+      context: .
+      target: runtime
     # Backend SQLite (necessário para o Model Registry da Etapa 4) + artefatos
     # em volume persistente (estado crítico nunca na camada efêmera).
     user: root
+    # --serve-artifacts: clientes logam artefatos via proxy HTTP (mlflow-artifacts:/),
+    # sem precisar de acesso ao filesystem do servidor — necessário para o serviço
+    # `train` (e para `dvc repro` local apontando ao compose) conseguir logar modelos.
     command:
       - mlflow
       - server
       - --backend-store-uri
       - sqlite:////mlflow/mlflow.db
-      - --default-artifact-root
+      - --artifacts-destination
       - /mlflow/artifacts
+      - --serve-artifacts
       - --host
       - 0.0.0.0
       - --port
@@ -34,7 +42,9 @@ services:
       start_period: 20s
 
   train:
-    build: .
+    build:
+      context: .
+      target: runtime
     depends_on:
       mlflow:
         condition: service_healthy
@@ -54,6 +64,10 @@ services:
         condition: service_healthy
     environment:
       MLFLOW_TRACKING_URI: http://mlflow:5000
+    # O primário vem do Registry, mas o fallback de popularidade é lido do disco
+    # (models/baseline.pkl) — output do `dvc repro`, montado somente leitura.
+    volumes:
+      - ./models:/app/models:ro
     ports:
       - "8000:8000"
 

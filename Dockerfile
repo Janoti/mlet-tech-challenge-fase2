@@ -5,8 +5,14 @@ WORKDIR /build
 # Camada estável primeiro (cache): dependências antes do código.
 # requirements.txt é gerado do poetry.lock com `make requirements`
 # (poetry export --only main,pipeline) — runtime da pipeline SEM torch/CUDA.
-COPY requirements.txt .
+COPY requirements.txt requirements-serving.txt ./
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+# torch CPU-only também no batch: a Etapa 4 adicionou os stages train_embedding/
+# evaluate_embedding ao dvc.yaml, então `dvc repro` dentro do container precisa de
+# torch. Mesma técnica do stage serving: wheel +cpu pinado, sem as libs CUDA.
+RUN TORCH_VER=$(grep '^torch==' requirements-serving.txt | grep '3.11' | sed -E 's/^torch==([^ ;]+).*/\1/') \
+    && pip install --no-cache-dir --prefix=/install "torch==${TORCH_VER}" \
+       --index-url https://download.pytorch.org/whl/cpu
 # Instala o próprio pacote (console scripts recsys-*) usando poetry-core.
 COPY pyproject.toml README.md ./
 COPY src ./src
